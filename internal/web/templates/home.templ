@@ -28,11 +28,10 @@ templ Home(downloads []*models.Download, suggestedDir string, recentDirs []strin
 						placeholder="https://example.com/file.zip"
 						class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
 						hx-post="/api/directory-suggestion"
-						hx-trigger="keyup changed delay:500ms"
-						hx-swap="none"
+						hx-trigger="keyup changed delay:500ms, paste delay:500ms"
+						hx-target="#directory-suggestion-response"
 						hx-include="this"
 						hx-indicator="#directory-suggestion-indicator"
-						hx-on="htmx:afterRequest: updateDirectoryDisplay(event.detail.xhr.responseText)"
 					/>
 				</div>
 
@@ -65,6 +64,9 @@ templ Home(downloads []*models.Download, suggestedDir string, recentDirs []strin
 								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 							</svg>
 						</div>
+						
+						<!-- Hidden target for directory suggestion response -->
+						<div id="directory-suggestion-response" class="hidden"></div>
 						
 						<!-- Directory picker modal overlay -->
 						<div id="directory-picker-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">

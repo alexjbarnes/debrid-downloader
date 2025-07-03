@@ -315,9 +315,9 @@ func (h *Handlers) getDirectorySuggestionsForURL(url string) (suggestedDir strin
 		return basePath, []string{}
 	}
 
-	// If no mappings exist, just return base path with empty suggestions
+	// If no mappings exist, try to suggest based on URL analysis
 	if len(mappings) == 0 {
-		return basePath, []string{}
+		return h.getSmartDirectorySuggestion(url, basePath), []string{}
 	}
 
 	// Score directories based on URL similarity
@@ -1097,4 +1097,98 @@ func (h *Handlers) ensureUniqueFilename(filename, directory string) string {
 	}
 
 	return filename
+}
+
+// getSmartDirectorySuggestion analyzes URL to suggest appropriate directory
+func (h *Handlers) getSmartDirectorySuggestion(url, basePath string) string {
+	// Extract filename from URL
+	filename := extractFilenameFromURL(url)
+	
+	if filename == "" {
+		return basePath
+	}
+
+	// Convert to lowercase for analysis
+	filename = strings.ToLower(filename)
+	url = strings.ToLower(url)
+	
+	// Extract domain for additional analysis
+	domain := extractDomain(url)
+
+	// Define category mappings
+	categories := map[string][]string{
+		"Movies": {
+			".mp4", ".mkv", ".avi", ".mov", ".wmv", ".flv", ".webm", ".m4v",
+			"movie", "film", "cinema", "dvdrip", "bluray", "hdtv", "webrip",
+		},
+		"TV Shows": {
+			"season", "episode", "s01", "s02", "s03", "s04", "s05", "e01", "e02",
+			"series", "tv", "show", "hdtv", "webrip",
+		},
+		"Music": {
+			".mp3", ".flac", ".wav", ".aac", ".ogg", ".m4a", ".wma",
+			"album", "music", "song", "track", "artist", "band",
+		},
+		"Software": {
+			".exe", ".msi", ".dmg", ".pkg", ".deb", ".rpm", ".appimage",
+			"software", "program", "app", "installer", "setup", "portable",
+		},
+		"Games": {
+			"game", "steam", "gog", "origin", "epic", "uplay", "crack", "repack",
+			".iso", "setup.exe",
+		},
+		"Books": {
+			".pdf", ".epub", ".mobi", ".azw", ".azw3", ".djvu",
+			"book", "ebook", "novel", "manual", "guide",
+		},
+		"Archives": {
+			".zip", ".rar", ".7z", ".tar", ".gz", ".bz2", ".xz",
+		},
+	}
+
+	// Score each category
+	bestCategory := ""
+	bestScore := 0
+
+	for category, keywords := range categories {
+		score := 0
+		for _, keyword := range keywords {
+			if strings.Contains(filename, keyword) || strings.Contains(url, keyword) {
+				if strings.HasPrefix(keyword, ".") {
+					// File extension gets higher score
+					score += 10
+				} else {
+					// Keyword gets regular score
+					score += 5
+				}
+			}
+		}
+		
+		// Domain-specific scoring
+		if domain != "" {
+			switch {
+			case strings.Contains(domain, "torrent") && category == "Movies":
+				score += 3
+			case strings.Contains(domain, "music") && category == "Music":
+				score += 3
+			case strings.Contains(domain, "software") && category == "Software":
+				score += 3
+			case strings.Contains(domain, "game") && category == "Games":
+				score += 3
+			}
+		}
+
+		if score > bestScore {
+			bestScore = score
+			bestCategory = category
+		}
+	}
+
+	// Return suggested directory path
+	if bestCategory != "" && bestScore >= 5 {
+		return filepath.Join(basePath, bestCategory)
+	}
+
+	// Fallback to base path
+	return basePath
 }

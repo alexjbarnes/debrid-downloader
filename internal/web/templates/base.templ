@@ -371,10 +371,48 @@ templ Base(title string, content templ.Component) {
 				// Update directory display when URL changes
 				window.updateDirectoryDisplay = function(suggestedPath) {
 					if (suggestedPath && suggestedPath.trim() !== '') {
-						document.getElementById('directory').value = suggestedPath.trim();
-						document.getElementById('selected-directory').textContent = suggestedPath.trim();
+						const trimmedPath = suggestedPath.trim();
+						const directoryInput = document.getElementById('directory');
+						const selectedDirectoryDisplay = document.getElementById('selected-directory');
+						
+						// Check if the path is actually different
+						if (directoryInput.value === trimmedPath) {
+							return; // No change needed
+						}
+						
+						// Add transition class if not already present
+						if (!selectedDirectoryDisplay.style.transition) {
+							selectedDirectoryDisplay.style.transition = 'opacity 0.2s ease-in-out';
+						}
+						
+						// Smooth transition: fade out, update, fade in
+						selectedDirectoryDisplay.style.opacity = '0';
+						
+						setTimeout(() => {
+							// Update the values
+							directoryInput.value = trimmedPath;
+							selectedDirectoryDisplay.textContent = trimmedPath;
+							
+							// Fade back in
+							selectedDirectoryDisplay.style.opacity = '1';
+						}, 100);
 					}
 				}
+				
+				// Set up mutation observer for directory suggestion response
+				document.addEventListener('DOMContentLoaded', function() {
+					const responseElement = document.getElementById('directory-suggestion-response');
+					if (responseElement) {
+						const observer = new MutationObserver(function(mutations) {
+							mutations.forEach(function(mutation) {
+								if (mutation.type === 'childList' && responseElement.textContent.trim() !== '') {
+									updateDirectoryDisplay(responseElement.textContent.trim());
+								}
+							});
+						});
+						observer.observe(responseElement, { childList: true, subtree: true });
+					}
+				});
 				
 				// Reset form to default values after successful submission
 				window.resetFormToDefaults = function() {
