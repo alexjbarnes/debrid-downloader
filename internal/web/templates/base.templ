@@ -55,6 +55,22 @@ templ Base(title string, content templ.Component) {
 				::-webkit-scrollbar-thumb:hover {
 					@apply bg-gray-400 dark:bg-gray-500;
 				}
+				
+				/* HTMX indicator styles - ensure proper initial visibility */
+				.htmx-indicator {
+					opacity: 0;
+					transition: opacity 200ms ease-in;
+				}
+				.htmx-indicator-none {
+					opacity: 1;
+					transition: opacity 200ms ease-in;
+				}
+				.htmx-request .htmx-indicator {
+					opacity: 1;
+				}
+				.htmx-request .htmx-indicator-none {
+					opacity: 0;
+				}
 			</style>
 		</head>
 		<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col transition-colors duration-200">

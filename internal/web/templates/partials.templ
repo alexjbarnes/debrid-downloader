@@ -53,7 +53,7 @@ templ CurrentDownloadsWithPolling(downloads []*models.Download, activeCount int)
 // DownloadResult displays the result of a download submission
 templ DownloadResult(success bool, message string) {
 	if success {
-		<div class="p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-md">
+		<div class="p-4 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-md transition-opacity duration-500" id="success-message">
 			<div class="flex">
 				<svg class="w-5 h-5 text-green-400 dark:text-green-300" fill="currentColor" viewBox="0 0 20 20">
 					<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
@@ -64,6 +64,18 @@ templ DownloadResult(success bool, message string) {
 				</div>
 			</div>
 		</div>
+		<script>
+			// Auto-dismiss success message after 5 seconds
+			setTimeout(function() {
+				const successMsg = document.getElementById('success-message');
+				if (successMsg) {
+					successMsg.style.opacity = '0';
+					setTimeout(function() {
+						successMsg.remove();
+					}, 500); // Wait for fade out transition
+				}
+			}, 5000);
+		</script>
 	} else {
 		<div class="p-4 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-md">
 			<div class="flex">
@@ -151,6 +163,72 @@ func calculateActiveDownloadTime(download *models.Download) time.Duration {
 		return 0
 	}
 	return activeDuration
+}
+
+// SubmitButton creates a submit button with different states
+templ SubmitButton(state string) {
+	<button 
+		id="submit-button"
+		type="submit"
+		if state == "success" {
+			class="bg-green-600 hover:bg-green-700 text-white font-medium text-base py-2.5 px-8 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 relative min-w-[160px]"
+		} else {
+			class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-base py-2.5 px-8 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 relative min-w-[160px]"
+		}
+		hx-swap-oob="outerHTML"
+	>
+		if state == "success" {
+			<span class="success-content flex items-center justify-center opacity-100 transition-opacity duration-200">
+				<svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+					<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+				</svg>
+				Success!
+			</span>
+			<span class="normal-content absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-200">
+				<span class="htmx-indicator absolute inset-0 flex items-center justify-center bg-blue-600 rounded-lg opacity-0">
+					<svg class="animate-spin h-4 w-4 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+					</svg>
+					Processing...
+				</span>
+				<span class="htmx-indicator-none opacity-100">Add Download</span>
+			</span>
+			<script>
+				// Reset button to normal state after 2.5 seconds
+				setTimeout(function() {
+					const btn = document.getElementById('submit-button');
+					if (btn) {
+						// Smoothly transition background color
+						btn.className = 'bg-green-600 hover:bg-green-700 text-white font-medium text-base py-2.5 px-8 rounded-lg transition-all duration-500 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 relative min-w-[160px]';
+						
+						// Start color transition
+						setTimeout(function() {
+							btn.className = 'bg-blue-600 hover:bg-blue-700 text-white font-medium text-base py-2.5 px-8 rounded-lg transition-all duration-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 relative min-w-[160px]';
+						}, 50);
+						
+						// Fade out success content and fade in normal content
+						const successContent = btn.querySelector('.success-content');
+						const normalContent = btn.querySelector('.normal-content');
+						
+						if (successContent && normalContent) {
+							successContent.style.opacity = '0';
+							normalContent.style.opacity = '1';
+						}
+					}
+				}, 2500);
+			</script>
+		} else {
+			<span class="htmx-indicator absolute inset-0 flex items-center justify-center bg-blue-600 rounded-lg">
+				<svg class="animate-spin h-4 w-4 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+					<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+					<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+				</svg>
+				Processing...
+			</span>
+			<span class="htmx-indicator-none">Add Download</span>
+		}
+	</button>
 }
 
 // DynamicPollingTrigger creates a reusable polling trigger component

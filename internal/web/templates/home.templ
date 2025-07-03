@@ -31,6 +31,7 @@ templ Home(downloads []*models.Download, suggestedDir string, recentDirs []strin
 						hx-trigger="keyup changed delay:500ms"
 						hx-swap="none"
 						hx-include="this"
+						hx-indicator="#directory-suggestion-indicator"
 						hx-on="htmx:afterRequest: updateDirectoryDisplay(event.detail.xhr.responseText)"
 					/>
 				</div>
@@ -56,6 +57,14 @@ templ Home(downloads []*models.Download, suggestedDir string, recentDirs []strin
 								<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
 							</svg>
 						</button>
+						
+						<!-- Directory suggestion loading indicator -->
+						<div id="directory-suggestion-indicator" class="htmx-indicator absolute right-3 top-3 pointer-events-none">
+							<svg class="animate-spin h-4 w-4 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+							</svg>
+						</div>
 						
 						<!-- Directory picker modal overlay -->
 						<div id="directory-picker-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
@@ -163,7 +172,7 @@ templ Home(downloads []*models.Download, suggestedDir string, recentDirs []strin
 					<button 
 						id="submit-button"
 						type="submit"
-						class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-base py-2.5 px-8 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 relative"
+						class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-base py-2.5 px-8 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 relative min-w-[160px]"
 					>
 						<span class="htmx-indicator absolute inset-0 flex items-center justify-center bg-blue-600 rounded-lg">
 							<svg class="animate-spin h-4 w-4 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
