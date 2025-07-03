@@ -12,7 +12,7 @@ import (
 
 	"debrid-downloader/pkg/models"
 
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // DB wraps the SQLite database connection
@@ -22,7 +22,7 @@ type DB struct {
 
 // New creates a new database connection and initializes the schema
 func New(dbPath string) (*DB, error) {
-	conn, err := sql.Open("sqlite3", dbPath)
+	conn, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
