@@ -1,15 +1,18 @@
 package templates
 
-templ Home(suggestedDir string, recentDirs []string) {
-	<div class="max-w-2xl mx-auto">
+import "debrid-downloader/pkg/models"
+
+templ Home(downloads []*models.Download, suggestedDir string, recentDirs []string) {
+	<div class="space-y-6">
+		<!-- Download Form Section -->
 		<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
 			<h2 class="text-2xl font-semibold text-gray-900 dark:text-white mb-6">Add New Download</h2>
 			
 			<form 
 				hx-post="/download" 
 				hx-target="#result"
-				hx-indicator=".loading-indicator"
-				hx-on="htmx:afterRequest: if(event.detail.successful) { this.reset(); setTimeout(() => htmx.trigger('#current-downloads', 'refresh'), 200); }"
+				hx-indicator="#submit-button"
+				hx-on="htmx:afterRequest: if(event.detail.successful) { /* form reset handled server-side via out-of-band swaps */ }"
 				class="space-y-6"
 			>
 				<!-- URL Input -->
@@ -158,11 +161,12 @@ templ Home(suggestedDir string, recentDirs []string) {
 				<!-- Submit Button -->
 				<div class="flex justify-center">
 					<button 
+						id="submit-button"
 						type="submit"
 						class="bg-blue-600 hover:bg-blue-700 text-white font-medium text-base py-2.5 px-8 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 relative"
 					>
-						<span class="htmx-indicator absolute inset-0 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-lg">
-							<svg class="animate-spin h-3 w-3 text-white mr-1" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+						<span class="htmx-indicator absolute inset-0 flex items-center justify-center bg-blue-600 rounded-lg">
+							<svg class="animate-spin h-4 w-4 text-white mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 								<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 								<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 							</svg>
@@ -177,19 +181,57 @@ templ Home(suggestedDir string, recentDirs []string) {
 			<div id="result" class="mt-6"></div>
 		</div>
 
-		<!-- Current Downloads -->
-		<div class="mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
-			<h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Current Downloads</h3>
-			<div 
-				id="current-downloads"
-				hx-get="/downloads/current" 
-				hx-trigger="load"
-			>
-				<!-- Current downloads will be loaded here -->
+		<!-- Downloads History Section -->
+		<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
+			<div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
+				<h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Download History</h2>
+				
+				<!-- Search and Filter -->
+				<div class="flex flex-col sm:flex-row gap-4">
+					<form id="search-form" class="flex flex-col sm:flex-row gap-4">
+						<input 
+							type="text" 
+							placeholder="Search downloads..."
+							class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
+							hx-post="/downloads/search"
+							hx-target="#downloads-list"
+							hx-trigger="keyup changed delay:300ms, change from:#status-filter"
+							hx-include="#search-form"
+							name="search"
+							id="search-input"
+						/>
+						
+						<select 
+							class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors"
+							hx-post="/downloads/search"
+							hx-target="#downloads-list"
+							hx-trigger="change"
+							hx-include="#search-form"
+							name="status"
+							id="status-filter"
+						>
+							<option value="">All Status</option>
+							<option value="pending">Pending</option>
+							<option value="downloading">Downloading</option>
+							<option value="completed">Completed</option>
+							<option value="failed">Failed</option>
+							<option value="paused">Paused</option>
+						</select>
+					</form>
+				</div>
+			</div>
+
+			<!-- Downloads List -->
+			<div id="downloads-list" class="space-y-4" 
+				hx-post="/downloads/search" 
+				hx-trigger="load, refresh"
+				hx-include="#search-form"
+				hx-swap="innerHTML">
+				@DownloadsList(downloads)
 			</div>
 			
 			<!-- Hidden polling trigger that gets updated via out-of-band swaps -->
-			<div id="current-downloads-polling-trigger" style="display: none;"></div>
+			<div id="polling-trigger" style="display: none;"></div>
 		</div>
 	</div>
 }

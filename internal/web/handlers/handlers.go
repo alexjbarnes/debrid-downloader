@@ -41,7 +41,7 @@ func NewHandlers(db *database.DB, client alldebrid.AllDebridClient, basePath str
 	}
 }
 
-// Home handles the home page
+// Home handles the home page (download form and history)
 func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
@@ -51,18 +51,6 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 	// Get directory suggestions based on filename
 	suggestedDir, recentDirs := h.getDirectorySuggestions(filename)
 
-	component := templates.Base("Home", templates.Home(suggestedDir, recentDirs))
-	if err := component.Render(r.Context(), w); err != nil {
-		h.logger.Error("Failed to render home template", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
-}
-
-// History handles the history page
-func (h *Handlers) History(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-
 	// Get downloads from database
 	downloads, err := h.db.ListDownloads(50, 0)
 	if err != nil {
@@ -71,13 +59,14 @@ func (h *Handlers) History(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	component := templates.Base("History", templates.History(downloads))
+	component := templates.Base("Debrid Downloader", templates.Home(downloads, suggestedDir, recentDirs))
 	if err := component.Render(r.Context(), w); err != nil {
-		h.logger.Error("Failed to render history template", "error", err)
+		h.logger.Error("Failed to render home template", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 }
+
 
 // CurrentDownloads handles HTMX requests for current downloads
 func (h *Handlers) CurrentDownloads(w http.ResponseWriter, r *http.Request) {
@@ -185,10 +174,64 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 
 	h.logger.Info("Download submitted", "url", url, "directory", directory, "filename", result.Filename, "download_id", download.ID)
 
+	// Get updated downloads for the list
+	downloads, err := h.db.ListDownloads(50, 0)
+	if err != nil {
+		h.logger.Error("Failed to get downloads for refresh", "error", err)
+		// Still return success, but without the refresh
+		component := templates.DownloadResult(true, "Download added to queue successfully")
+		component.Render(r.Context(), w)
+		return
+	}
+
+	// Count active downloads for polling logic
+	activeCount := 0
+	for _, download := range downloads {
+		if download.Status == models.StatusPending ||
+			download.Status == models.StatusDownloading ||
+			download.Status == models.StatusPaused {
+			activeCount++
+		}
+	}
+
+	// Get directory suggestions for form reset
+	suggestedDir, _ := h.getDirectorySuggestions("")
+
+	// Send success message and trigger downloads list refresh via out-of-band swap
+	w.Write([]byte(`<div id="result" class="mt-6">`))
 	component := templates.DownloadResult(true, "Download added to queue successfully")
 	if err := component.Render(r.Context(), w); err != nil {
 		h.logger.Error("Failed to render download result", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	w.Write([]byte(`</div>`))
+	
+	// Send out-of-band swap to reset the URL input
+	w.Write([]byte(`<input type="url" id="url" name="url" required placeholder="https://example.com/file.zip" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors" hx-post="/api/directory-suggestion" hx-trigger="keyup changed delay:500ms" hx-swap="none" hx-include="this" hx-on="htmx:afterRequest: updateDirectoryDisplay(event.detail.xhr.responseText)" hx-swap-oob="true" value="">`))
+	
+	// Send out-of-band swap to reset the directory fields
+	w.Write([]byte(`<input type="hidden" id="directory" name="directory" value="`))
+	w.Write([]byte(suggestedDir))
+	w.Write([]byte(`" hx-swap-oob="true">`))
+	
+	w.Write([]byte(`<span id="selected-directory" hx-swap-oob="true">`))
+	w.Write([]byte(suggestedDir))
+	w.Write([]byte(`</span>`))
+	
+	// Send out-of-band swap to update downloads list
+	w.Write([]byte(`<div id="downloads-list" class="space-y-4" hx-post="/downloads/search" hx-trigger="load, refresh" hx-include="#search-form" hx-swap="innerHTML" hx-swap-oob="true">`))
+	downloadsComponent := templates.DownloadsList(downloads)
+	if err := downloadsComponent.Render(r.Context(), w); err != nil {
+		h.logger.Error("Failed to render downloads list", "error", err)
+		return
+	}
+	w.Write([]byte(`</div>`))
+	
+	// Also send updated polling trigger
+	pollingComponent := templates.DynamicPollingTrigger("polling-trigger", "/downloads/search", "#downloads-list", activeCount)
+	if err := pollingComponent.Render(r.Context(), w); err != nil {
+		h.logger.Error("Failed to render polling trigger", "error", err)
 		return
 	}
 }

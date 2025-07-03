@@ -69,7 +69,7 @@ templ Base(title string, content templ.Component) {
 								</a>
 							</h1>
 						</div>
-						<!-- Hamburger Menu -->
+						<!-- Settings Menu -->
 						<div class="relative">
 								<button 
 									onclick="toggleMenu()" 
@@ -85,19 +85,6 @@ templ Base(title string, content templ.Component) {
 								<!-- Dropdown Menu -->
 								<div id="dropdown-menu" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
 									<div class="py-1">
-										<a href="/" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-											<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-											</svg>
-											Download
-										</a>
-										<a href="/history" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
-											<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-											</svg>
-											History
-										</a>
-										<div class="border-t border-gray-200 dark:border-gray-600 my-1"></div>
 										<a href="/settings" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
 											<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
 												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
@@ -370,6 +357,20 @@ templ Base(title string, content templ.Component) {
 					if (suggestedPath && suggestedPath.trim() !== '') {
 						document.getElementById('directory').value = suggestedPath.trim();
 						document.getElementById('selected-directory').textContent = suggestedPath.trim();
+					}
+				}
+				
+				// Reset form to default values after successful submission
+				window.resetFormToDefaults = function() {
+					// Get the default directory value from the hidden input's initial value
+					const directoryInput = document.getElementById('directory');
+					const selectedDirectoryDisplay = document.getElementById('selected-directory');
+					
+					if (directoryInput && selectedDirectoryDisplay) {
+						// Reset to the initial value that was set on page load
+						const defaultDir = directoryInput.defaultValue || directoryInput.getAttribute('value') || '';
+						directoryInput.value = defaultDir;
+						selectedDirectoryDisplay.textContent = defaultDir;
 					}
 				}
 				

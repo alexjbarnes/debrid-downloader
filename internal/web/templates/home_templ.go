@@ -8,7 +8,9 @@ package templates
 import "github.com/a-h/templ"
 import templruntime "github.com/a-h/templ/runtime"
 
-func Home(suggestedDir string, recentDirs []string) templ.Component {
+import "debrid-downloader/pkg/models"
+
+func Home(downloads []*models.Download, suggestedDir string, recentDirs []string) templ.Component {
 	return templruntime.GeneratedTemplate(func(templ_7745c5c3_Input templruntime.GeneratedComponentInput) (templ_7745c5c3_Err error) {
 		templ_7745c5c3_W, ctx := templ_7745c5c3_Input.Writer, templ_7745c5c3_Input.Context
 		if templ_7745c5c3_CtxErr := ctx.Err(); templ_7745c5c3_CtxErr != nil {
@@ -29,14 +31,14 @@ func Home(suggestedDir string, recentDirs []string) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"max-w-2xl mx-auto\"><div class=\"bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6\"><h2 class=\"text-2xl font-semibold text-gray-900 dark:text-white mb-6\">Add New Download</h2><form hx-post=\"/download\" hx-target=\"#result\" hx-indicator=\".loading-indicator\" hx-on=\"htmx:afterRequest: if(event.detail.successful) { this.reset(); setTimeout(() => htmx.trigger('#current-downloads', 'refresh'), 200); }\" class=\"space-y-6\"><!-- URL Input --><div><label for=\"url\" class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">File URL</label> <input type=\"url\" id=\"url\" name=\"url\" required placeholder=\"https://example.com/file.zip\" class=\"w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors\" hx-post=\"/api/directory-suggestion\" hx-trigger=\"keyup changed delay:500ms\" hx-swap=\"none\" hx-include=\"this\" hx-on=\"htmx:afterRequest: updateDirectoryDisplay(event.detail.xhr.responseText)\"></div><!-- Directory Selection --><div><label for=\"directory\" class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Download Directory</label><div class=\"space-y-2 relative\"><!-- Hidden input for form submission --><input type=\"hidden\" id=\"directory\" name=\"directory\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"space-y-6\"><!-- Download Form Section --><div class=\"bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6\"><h2 class=\"text-2xl font-semibold text-gray-900 dark:text-white mb-6\">Add New Download</h2><form hx-post=\"/download\" hx-target=\"#result\" hx-indicator=\"#submit-button\" hx-on=\"htmx:afterRequest: if(event.detail.successful) { /* form reset handled server-side via out-of-band swaps */ }\" class=\"space-y-6\"><!-- URL Input --><div><label for=\"url\" class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">File URL</label> <input type=\"url\" id=\"url\" name=\"url\" required placeholder=\"https://example.com/file.zip\" class=\"w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors\" hx-post=\"/api/directory-suggestion\" hx-trigger=\"keyup changed delay:500ms\" hx-swap=\"none\" hx-include=\"this\" hx-on=\"htmx:afterRequest: updateDirectoryDisplay(event.detail.xhr.responseText)\"></div><!-- Directory Selection --><div><label for=\"directory\" class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Download Directory</label><div class=\"space-y-2 relative\"><!-- Hidden input for form submission --><input type=\"hidden\" id=\"directory\" name=\"directory\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(suggestedDir)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 42, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 45, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -49,7 +51,7 @@ func Home(suggestedDir string, recentDirs []string) templ.Component {
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(suggestedDir)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 51, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 54, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -72,7 +74,7 @@ func Home(suggestedDir string, recentDirs []string) templ.Component {
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(dir)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 146, Col: 24}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 149, Col: 24}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -85,7 +87,7 @@ func Home(suggestedDir string, recentDirs []string) templ.Component {
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(dir)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 150, Col: 15}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 153, Col: 15}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {
@@ -101,7 +103,15 @@ func Home(suggestedDir string, recentDirs []string) templ.Component {
 				return templ_7745c5c3_Err
 			}
 		}
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div></div><!-- Submit Button --><div class=\"flex justify-center\"><button type=\"submit\" class=\"bg-blue-600 hover:bg-blue-700 text-white font-medium text-base py-2.5 px-8 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 relative\"><span class=\"htmx-indicator absolute inset-0 flex items-center justify-center bg-blue-600 hover:bg-blue-700 rounded-lg\"><svg class=\"animate-spin h-3 w-3 text-white mr-1\" xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 24 24\"><circle class=\"opacity-25\" cx=\"12\" cy=\"12\" r=\"10\" stroke=\"currentColor\" stroke-width=\"4\"></circle> <path class=\"opacity-75\" fill=\"currentColor\" d=\"M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z\"></path></svg> Processing...</span> <span class=\"htmx-indicator-none\">Add Download</span></button></div></form><!-- Result Area --><div id=\"result\" class=\"mt-6\"></div></div><!-- Current Downloads --><div class=\"mt-8 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6\"><h3 class=\"text-lg font-semibold text-gray-900 dark:text-white mb-4\">Current Downloads</h3><div id=\"current-downloads\" hx-get=\"/downloads/current\" hx-trigger=\"load\"><!-- Current downloads will be loaded here --></div><!-- Hidden polling trigger that gets updated via out-of-band swaps --><div id=\"current-downloads-polling-trigger\" style=\"display: none;\"></div></div></div>")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 9, "</div></div><!-- Submit Button --><div class=\"flex justify-center\"><button id=\"submit-button\" type=\"submit\" class=\"bg-blue-600 hover:bg-blue-700 text-white font-medium text-base py-2.5 px-8 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 relative\"><span class=\"htmx-indicator absolute inset-0 flex items-center justify-center bg-blue-600 rounded-lg\"><svg class=\"animate-spin h-4 w-4 text-white mr-2\" xmlns=\"http://www.w3.org/2000/svg\" fill=\"none\" viewBox=\"0 0 24 24\"><circle class=\"opacity-25\" cx=\"12\" cy=\"12\" r=\"10\" stroke=\"currentColor\" stroke-width=\"4\"></circle> <path class=\"opacity-75\" fill=\"currentColor\" d=\"M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z\"></path></svg> Processing...</span> <span class=\"htmx-indicator-none\">Add Download</span></button></div></form><!-- Result Area --><div id=\"result\" class=\"mt-6\"></div></div><!-- Downloads History Section --><div class=\"bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6\"><div class=\"flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6\"><h2 class=\"text-2xl font-semibold text-gray-900 dark:text-white\">Download History</h2><!-- Search and Filter --><div class=\"flex flex-col sm:flex-row gap-4\"><form id=\"search-form\" class=\"flex flex-col sm:flex-row gap-4\"><input type=\"text\" placeholder=\"Search downloads...\" class=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors\" hx-post=\"/downloads/search\" hx-target=\"#downloads-list\" hx-trigger=\"keyup changed delay:300ms, change from:#status-filter\" hx-include=\"#search-form\" name=\"search\" id=\"search-input\"> <select class=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors\" hx-post=\"/downloads/search\" hx-target=\"#downloads-list\" hx-trigger=\"change\" hx-include=\"#search-form\" name=\"status\" id=\"status-filter\"><option value=\"\">All Status</option> <option value=\"pending\">Pending</option> <option value=\"downloading\">Downloading</option> <option value=\"completed\">Completed</option> <option value=\"failed\">Failed</option> <option value=\"paused\">Paused</option></select></form></div></div><!-- Downloads List --><div id=\"downloads-list\" class=\"space-y-4\" hx-post=\"/downloads/search\" hx-trigger=\"load, refresh\" hx-include=\"#search-form\" hx-swap=\"innerHTML\">")
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = DownloadsList(downloads).Render(ctx, templ_7745c5c3_Buffer)
+		if templ_7745c5c3_Err != nil {
+			return templ_7745c5c3_Err
+		}
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 10, "</div><!-- Hidden polling trigger that gets updated via out-of-band swaps --><div id=\"polling-trigger\" style=\"display: none;\"></div></div></div>")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}

@@ -32,7 +32,6 @@ func NewServer(db *database.DB, client alldebrid.AllDebridClient, cfg *config.Co
 
 	// Routes
 	mux.HandleFunc("GET /", handlers.Home)
-	mux.HandleFunc("GET /history", handlers.History)
 	mux.HandleFunc("GET /settings", handlers.Settings)
 
 	// HTMX partial endpoints
