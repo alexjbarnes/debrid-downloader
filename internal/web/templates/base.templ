@@ -1,0 +1,379 @@
+package templates
+
+templ Base(title string, content templ.Component) {
+	<!DOCTYPE html>
+	<html lang="en" class="">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+			<title>{ title } - Debrid Downloader</title>
+			<script src="https://unpkg.com/htmx.org@2.0.4" integrity="sha384-HGfztofotfshcF7+8n44JQL2oJmowVChPTg48S+jvZoztPfvwD79OC/LTtG6dMp+" crossorigin="anonymous"></script>
+			<script src="https://cdn.tailwindcss.com"></script>
+			<script>
+				// Configure Tailwind for class-based dark mode
+				tailwind.config = {
+					darkMode: 'class'
+				}
+			</script>
+			<script>
+				// Theme detection and application - must run before page renders
+				(function() {
+					try {
+						const savedTheme = localStorage.getItem('theme');
+						const userSetTheme = localStorage.getItem('userSetTheme'); // Track if user explicitly chose
+						const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+						
+						// If user hasn't explicitly set a theme, always follow device preference
+						const theme = (savedTheme && userSetTheme) ? savedTheme : (prefersDark ? 'dark' : 'light');
+						
+						if (theme === 'dark') {
+							document.documentElement.classList.add('dark');
+						} else {
+							document.documentElement.classList.remove('dark');
+						}
+						
+						// Only save if we're using a saved theme, otherwise let it follow device
+						if (savedTheme && userSetTheme) {
+							localStorage.setItem('theme', theme);
+						}
+					} catch (e) {
+						console.warn('Theme initialization failed:', e);
+					}
+				})();
+			</script>
+			<style>
+				/* Custom scrollbar */
+				::-webkit-scrollbar {
+					width: 6px;
+				}
+				::-webkit-scrollbar-track {
+					@apply bg-gray-100 dark:bg-gray-800;
+				}
+				::-webkit-scrollbar-thumb {
+					@apply bg-gray-300 dark:bg-gray-600 rounded-full;
+				}
+				::-webkit-scrollbar-thumb:hover {
+					@apply bg-gray-400 dark:bg-gray-500;
+				}
+			</style>
+		</head>
+		<body class="bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 min-h-screen flex flex-col transition-colors duration-200">
+			<!-- Header -->
+			<header class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700">
+				<div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
+					<div class="flex justify-between items-center h-16">
+						<div class="flex items-center">
+							<h1 class="text-xl font-semibold text-gray-900 dark:text-white">
+								<a href="/" class="hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+									Debrid Downloader
+								</a>
+							</h1>
+						</div>
+						<!-- Hamburger Menu -->
+						<div class="relative">
+								<button 
+									onclick="toggleMenu()" 
+									class="p-2 rounded-lg bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+									aria-label="Open menu"
+									id="menu-button"
+								>
+									<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+										<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+									</svg>
+								</button>
+								
+								<!-- Dropdown Menu -->
+								<div id="dropdown-menu" class="hidden absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+									<div class="py-1">
+										<a href="/" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+											<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+											</svg>
+											Download
+										</a>
+										<a href="/history" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+											<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+											</svg>
+											History
+										</a>
+										<div class="border-t border-gray-200 dark:border-gray-600 my-1"></div>
+										<a href="/settings" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors">
+											<svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+												<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+											</svg>
+											Settings
+										</a>
+									</div>
+								</div>
+						</div>
+					</div>
+				</div>
+			</header>
+
+			<!-- Main Content -->
+			<main class="flex-1 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 w-full">
+				@content
+			</main>
+
+
+			<script>
+				// Global theme setting function
+				window.setTheme = function(theme) {
+					try {
+						const html = document.documentElement;
+						
+						if (theme === 'dark') {
+							html.classList.add('dark');
+						} else {
+							html.classList.remove('dark');
+						}
+						
+						// Mark that user has explicitly set a theme
+						localStorage.setItem('theme', theme);
+						localStorage.setItem('userSetTheme', 'true');
+						
+						// Trigger custom event for settings page
+						window.dispatchEvent(new CustomEvent('themeChanged', { detail: { theme } }));
+					} catch (e) {
+						console.warn('Failed to save theme preference');
+					}
+				};
+
+				function toggleMenu() {
+					const menu = document.getElementById('dropdown-menu');
+					menu.classList.toggle('hidden');
+					
+					// Close menu when clicking outside
+					document.addEventListener('click', closeMenuOnOutsideClick);
+				}
+				
+				function closeMenuOnOutsideClick(event) {
+					const menu = document.getElementById('dropdown-menu');
+					const button = document.getElementById('menu-button');
+					if (!menu.contains(event.target) && !button.contains(event.target)) {
+						menu.classList.add('hidden');
+						document.removeEventListener('click', closeMenuOnOutsideClick);
+					}
+				}
+
+				// Directory picker functionality
+				let currentPath = '/';
+				let basePath = ''; // Will be set from server's base path
+				
+				// Make functions globally accessible
+				window.toggleDirectoryPicker = function() {
+					const overlay = document.getElementById('directory-picker-overlay');
+					if (overlay && overlay.classList.contains('hidden')) {
+						showDirectoryPicker();
+					} else {
+						hideDirectoryPicker();
+					}
+				}
+				
+				window.showDirectoryPicker = function() {
+					const overlay = document.getElementById('directory-picker-overlay');
+					if (!overlay) {
+						console.error('Directory picker overlay not found');
+						return;
+					}
+					overlay.classList.remove('hidden');
+					// Always start from root when opening
+					currentPath = '/';
+					loadDirectories(currentPath);
+				}
+				
+				window.hideDirectoryPicker = function() {
+					const overlay = document.getElementById('directory-picker-overlay');
+					if (overlay) {
+						overlay.classList.add('hidden');
+					}
+				}
+				
+				// Add event listener to close modal when clicking overlay
+				document.addEventListener('DOMContentLoaded', function() {
+					const overlay = document.getElementById('directory-picker-overlay');
+					if (overlay) {
+						overlay.addEventListener('click', function(e) {
+							if (e.target === overlay) {
+								hideDirectoryPicker();
+							}
+						});
+					}
+				});
+				
+				async function loadDirectories(path) {
+					try {
+						const response = await fetch(`/api/folders?path=${encodeURIComponent(path)}`);
+						const data = await response.json();
+						
+						if (!response.ok) {
+							throw new Error(data.error || 'Failed to load directories');
+						}
+						
+						currentPath = data.current_path;
+						basePath = data.base_path;
+						renderBreadcrumbs(data.breadcrumbs);
+						renderDirectories(data.directories);
+					} catch (error) {
+						console.error('Error loading directories:', error);
+						alert('Failed to load directories: ' + error.message);
+					}
+				}
+				
+				function renderBreadcrumbs(breadcrumbs) {
+					const container = document.querySelector('#breadcrumb-nav .flex');
+					container.innerHTML = '';
+					
+					breadcrumbs.forEach((crumb, index) => {
+						if (index > 0) {
+							const separator = document.createElement('span');
+							separator.className = 'text-gray-400';
+							separator.textContent = '/';
+							container.appendChild(separator);
+						}
+						
+						const link = document.createElement('button');
+						link.type = 'button';
+						link.className = 'text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300';
+						link.textContent = crumb.name;
+						link.onclick = () => loadDirectories(crumb.path);
+						container.appendChild(link);
+					});
+				}
+				
+				function renderDirectories(directories) {
+					const container = document.getElementById('directory-list');
+					container.innerHTML = '';
+					
+					if (directories.length === 0) {
+						const emptyMsg = document.createElement('div');
+						emptyMsg.className = 'px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400';
+						emptyMsg.textContent = 'No subdirectories found';
+						container.appendChild(emptyMsg);
+						return;
+					}
+					
+					directories.forEach(dir => {
+						const item = document.createElement('div');
+						item.className = 'flex items-center px-4 py-2 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors border-b border-gray-100 dark:border-gray-700';
+						
+						const dirButton = document.createElement('button');
+						dirButton.type = 'button';
+						dirButton.className = 'flex-1 flex items-center text-left';
+						dirButton.onclick = () => loadDirectories(dir.path);
+						
+						const icon = document.createElement('svg');
+						icon.className = 'w-5 h-5 mr-3 flex-shrink-0';
+						icon.setAttribute('viewBox', '0 0 24 24');
+						
+						if (dir.name === '..') {
+							// Parent directory icon
+							icon.classList.add('text-gray-400');
+							icon.innerHTML = '<path fill="currentColor" d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>';
+						} else {
+							// Regular folder icon
+							icon.classList.add('text-blue-500');
+							icon.innerHTML = '<path fill="currentColor" d="M10 4H4c-1.11 0-2 .89-2 2v12c0 1.11.89 2 2 2h16c1.11 0 2-.89 2-2V8c0-1.11-.89-2-2-2h-8l-2-2z"/>';
+						}
+						
+						const text = document.createElement('span');
+						text.className = 'flex-1 text-gray-900 dark:text-white';
+						text.textContent = dir.name === '..' ? 'Parent Directory' : dir.name;
+						
+						dirButton.appendChild(icon);
+						dirButton.appendChild(text);
+						item.appendChild(dirButton);
+						
+						// No individual select buttons - users navigate into folders and select from there
+						
+						container.appendChild(item);
+					});
+				}
+				
+				window.selectDirectory = function(path) {
+					// Build the full absolute path
+					let fullPath = basePath;
+					if (path !== '/' && path !== '') {
+						// Remove leading slash from path if present
+						const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+						fullPath = basePath + '/' + cleanPath;
+					}
+					
+					document.getElementById('directory').value = fullPath;
+					document.getElementById('selected-directory').textContent = fullPath;
+					hideDirectoryPicker();
+				}
+				
+				window.createNewFolder = async function() {
+					const nameInput = document.getElementById('new-folder-name');
+					const name = nameInput.value.trim();
+					
+					if (!name) {
+						alert('Please enter a folder name');
+						return;
+					}
+					
+					try {
+						const response = await fetch('/api/folders', {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json',
+							},
+							body: JSON.stringify({
+								path: currentPath,
+								name: name
+							})
+						});
+						
+						const data = await response.json();
+						
+						if (!response.ok) {
+							throw new Error(data.error || 'Failed to create folder');
+						}
+						
+						nameInput.value = '';
+						cancelNewFolder(); // Hide the input
+						loadDirectories(currentPath); // Refresh the current directory
+					} catch (error) {
+						console.error('Error creating folder:', error);
+						alert('Failed to create folder: ' + error.message);
+					}
+				}
+				
+				window.selectCurrentDirectory = function() {
+					// Build the full absolute path for current directory
+					let fullPath = basePath;
+					if (currentPath !== '/' && currentPath !== '') {
+						const cleanPath = currentPath.startsWith('/') ? currentPath.substring(1) : currentPath;
+						fullPath = basePath + '/' + cleanPath;
+					}
+					
+					document.getElementById('directory').value = fullPath;
+					document.getElementById('selected-directory').textContent = fullPath;
+					hideDirectoryPicker();
+				}
+				
+				window.showNewFolderInput = function() {
+					document.getElementById('new-folder-input').classList.remove('hidden');
+					document.getElementById('new-folder-name').focus();
+				}
+				
+				window.cancelNewFolder = function() {
+					document.getElementById('new-folder-input').classList.add('hidden');
+					document.getElementById('new-folder-name').value = '';
+				}
+				
+				// Update directory display when URL changes
+				window.updateDirectoryDisplay = function(suggestedPath) {
+					if (suggestedPath && suggestedPath.trim() !== '') {
+						document.getElementById('directory').value = suggestedPath.trim();
+						document.getElementById('selected-directory').textContent = suggestedPath.trim();
+					}
+				}
+				
+			</script>
+		</body>
+	</html>
+}
