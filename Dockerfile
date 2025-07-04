@@ -18,7 +18,7 @@ RUN go mod download
 COPY . .
 
 # Build the application
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o debrid-downloader ./cmd/debrid-downloader
+RUN CGO_ENABLED=0 GOOS=linux go build -a -o debrid-downloader ./cmd/debrid-downloader
 
 # Final stage using wolfi
 FROM cgr.dev/chainguard/wolfi-base:latest
