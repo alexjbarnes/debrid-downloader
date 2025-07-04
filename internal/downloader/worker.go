@@ -3,16 +3,20 @@ package downloader
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
+	"debrid-downloader/internal/cleanup"
 	"debrid-downloader/internal/database"
+	"debrid-downloader/internal/extractor"
 	"debrid-downloader/pkg/models"
 )
 
@@ -90,10 +94,12 @@ func (sh *SpeedHistory) CalculateSpeed(recentBytes int64, recentTime float64) fl
 
 // Worker manages the download queue and processes downloads sequentially
 type Worker struct {
-	db     *database.DB
-	logger *slog.Logger
-	queue  chan int64 // Channel for download IDs
-	mu     sync.RWMutex
+	db        *database.DB
+	logger    *slog.Logger
+	queue     chan int64 // Channel for download IDs
+	extractor *extractor.Service
+	cleanup   *cleanup.Service
+	mu        sync.RWMutex
 
 	// Current download state
 	currentDownload *models.Download
@@ -102,11 +108,13 @@ type Worker struct {
 }
 
 // NewWorker creates a new download worker
-func NewWorker(db *database.DB) *Worker {
+func NewWorker(db *database.DB, baseDownloadPath string) *Worker {
 	return &Worker{
-		db:     db,
-		logger: slog.Default(),
-		queue:  make(chan int64, 100), // Buffer for up to 100 queued downloads
+		db:        db,
+		logger:    slog.Default(),
+		queue:     make(chan int64, 100), // Buffer for up to 100 queued downloads
+		extractor: extractor.NewService(),
+		cleanup:   cleanup.NewService(db, baseDownloadPath),
 	}
 }
 
@@ -255,6 +263,12 @@ func (w *Worker) processDownload(ctx context.Context, downloadID int64) {
 		if err == nil {
 			// Success!
 			w.logger.Info("Download completed successfully", "download_id", downloadID)
+
+			// Check if this download is part of a group and handle group completion
+			if download.GroupID != "" {
+				w.checkGroupCompletion(download.GroupID)
+			}
+
 			return
 		}
 
@@ -489,7 +503,7 @@ func (w *Worker) copyWithProgress(ctx context.Context, dst io.Writer, src io.Rea
 
 				// Calculate overall download speed for completed download
 				if download.StartedAt != nil {
-					totalDuration := time.Now().Sub(*download.StartedAt).Seconds()
+					totalDuration := time.Since(*download.StartedAt).Seconds()
 					// Subtract paused time from total duration for accurate speed calculation
 					activeDuration := totalDuration - float64(download.TotalPausedTime)
 					if activeDuration > 0 {
@@ -511,4 +525,317 @@ func (w *Worker) copyWithProgress(ctx context.Context, dst io.Writer, src io.Rea
 			return fmt.Errorf("failed to read from response: %w", err)
 		}
 	}
+}
+
+// checkGroupCompletion checks if all downloads in a group are complete and triggers post-processing
+func (w *Worker) checkGroupCompletion(groupID string) {
+	// Get the group from database
+	group, err := w.db.GetDownloadGroup(groupID)
+	if err != nil {
+		w.logger.Error("Failed to get download group", "group_id", groupID, "error", err)
+		return
+	}
+
+	// Get all downloads in this group
+	downloads, err := w.db.GetDownloadsByGroupID(groupID)
+	if err != nil {
+		w.logger.Error("Failed to get downloads by group ID", "group_id", groupID, "error", err)
+		return
+	}
+
+	// Count completed downloads
+	completedCount := 0
+	for _, download := range downloads {
+		if download.Status == models.StatusCompleted {
+			completedCount++
+		}
+	}
+
+	// Update group progress
+	group.CompletedDownloads = completedCount
+	if err := w.db.UpdateDownloadGroup(group); err != nil {
+		w.logger.Error("Failed to update download group progress", "group_id", groupID, "error", err)
+		return
+	}
+
+	w.logger.Info("Group progress updated", "group_id", groupID, "completed", completedCount, "total", group.TotalDownloads)
+
+	// If all downloads are complete, start post-processing
+	if completedCount >= group.TotalDownloads {
+		w.logger.Info("All downloads in group completed, starting post-processing", "group_id", groupID)
+
+		// Update group status to processing
+		group.Status = models.GroupStatusProcessing
+		if err := w.db.UpdateDownloadGroup(group); err != nil {
+			w.logger.Error("Failed to update group status to processing", "group_id", groupID, "error", err)
+			return
+		}
+
+		// Process the group asynchronously to avoid blocking the download worker
+		go w.processGroup(groupID)
+	}
+}
+
+// processGroup handles post-download processing for a completed group
+func (w *Worker) processGroup(groupID string) {
+	w.logger.Info("Starting group post-processing", "group_id", groupID)
+
+	// Get all completed downloads in this group
+	downloads, err := w.db.GetDownloadsByGroupID(groupID)
+	if err != nil {
+		w.logger.Error("Failed to get downloads for group processing", "group_id", groupID, "error", err)
+		w.markGroupFailed(groupID, fmt.Sprintf("Failed to get downloads: %s", err.Error()))
+		return
+	}
+
+	// Filter for completed downloads
+	var completedDownloads []*models.Download
+	var allCompleted = true
+	var statusCount = make(map[models.DownloadStatus]int)
+	
+	for _, download := range downloads {
+		statusCount[download.Status]++
+		if download.Status == models.StatusCompleted {
+			completedDownloads = append(completedDownloads, download)
+		} else if download.Status != models.StatusFailed {
+			// If any download is still pending/downloading, don't process yet
+			allCompleted = false
+		}
+	}
+
+	w.logger.Info("Group status summary", "group_id", groupID, "total", len(downloads), "status_counts", statusCount)
+
+	if !allCompleted {
+		w.logger.Info("Not all downloads in group are completed yet", "group_id", groupID, "completed", len(completedDownloads), "total", len(downloads))
+		
+		// Log details of incomplete downloads
+		for _, download := range downloads {
+			if download.Status != models.StatusCompleted && download.Status != models.StatusFailed {
+				w.logger.Info("Incomplete download", "download_id", download.ID, "filename", download.Filename, "status", download.Status, "progress", download.Progress)
+			}
+		}
+		return
+	}
+
+	// Now filter for archives that should be processed
+	var archiveDownloads []*models.Download
+	processedMultiparts := make(map[string]bool)
+	
+	for _, download := range completedDownloads {
+		if download.IsArchive {
+			filename := strings.ToLower(download.Filename)
+			
+			// Check if it's a multi-part RAR
+			if strings.HasSuffix(filename, ".rar") && strings.Contains(filename, ".part") {
+				// Extract the base name (everything before .partX.rar)
+				baseName := filename
+				if idx := strings.Index(filename, ".part"); idx > 0 {
+					baseName = filename[:idx]
+				}
+				
+				// Only process the first part
+				if strings.Contains(filename, ".part1.rar") || 
+				   strings.Contains(filename, ".part01.rar") || 
+				   strings.Contains(filename, ".part001.rar") {
+					if !processedMultiparts[baseName] {
+						archiveDownloads = append(archiveDownloads, download)
+						processedMultiparts[baseName] = true
+						w.logger.Info("Adding multi-part RAR for processing", "filename", download.Filename)
+					}
+				} else {
+					w.logger.Info("Skipping non-first part of multi-part RAR", "filename", download.Filename)
+				}
+			} else if w.extractor.IsArchive(download.Filename) {
+				// For non-multipart archives or other archive types
+				archiveDownloads = append(archiveDownloads, download)
+				w.logger.Info("Adding archive for processing", "filename", download.Filename)
+			}
+		}
+	}
+
+	if len(archiveDownloads) == 0 {
+		w.logger.Info("No archive files to process in group", "group_id", groupID)
+		w.markGroupCompleted(groupID)
+		return
+	}
+
+	w.logger.Info("Processing archives in group", "group_id", groupID, "archive_count", len(archiveDownloads))
+
+	// Process each archive download
+	successCount := 0
+	for _, download := range archiveDownloads {
+		if err := w.processArchive(download); err != nil {
+			w.logger.Error("Failed to process archive", "download_id", download.ID, "filename", download.Filename, "error", err)
+			// Continue with other archives even if one fails
+		} else {
+			successCount++
+		}
+	}
+
+	if successCount > 0 {
+		w.logger.Info("Archive processing completed", "group_id", groupID, "successful", successCount, "total", len(archiveDownloads))
+		w.markGroupCompleted(groupID)
+	} else {
+		w.logger.Error("No archives could be processed", "group_id", groupID)
+		w.markGroupFailed(groupID, "Failed to process any archive files")
+	}
+}
+
+// markGroupCompleted marks a group as successfully completed
+func (w *Worker) markGroupCompleted(groupID string) {
+	group, err := w.db.GetDownloadGroup(groupID)
+	if err != nil {
+		w.logger.Error("Failed to get group for completion", "group_id", groupID, "error", err)
+		return
+	}
+
+	group.Status = models.GroupStatusCompleted
+	if err := w.db.UpdateDownloadGroup(group); err != nil {
+		w.logger.Error("Failed to mark group as completed", "group_id", groupID, "error", err)
+		return
+	}
+
+	w.logger.Info("Group processing completed successfully", "group_id", groupID)
+}
+
+// markGroupFailed marks a group as failed with an error message
+func (w *Worker) markGroupFailed(groupID string, errorMessage string) {
+	group, err := w.db.GetDownloadGroup(groupID)
+	if err != nil {
+		w.logger.Error("Failed to get group for failure marking", "group_id", groupID, "error", err)
+		return
+	}
+
+	group.Status = models.GroupStatusFailed
+	group.ProcessingError = errorMessage
+	if err := w.db.UpdateDownloadGroup(group); err != nil {
+		w.logger.Error("Failed to mark group as failed", "group_id", groupID, "error", err)
+		return
+	}
+
+	w.logger.Error("Group processing failed", "group_id", groupID, "error", errorMessage)
+}
+
+// processArchive extracts an archive file and tracks the extracted files
+func (w *Worker) processArchive(download *models.Download) error {
+	archivePath := filepath.Join(download.Directory, download.Filename)
+
+	// Check if archive file exists
+	if _, err := os.Stat(archivePath); os.IsNotExist(err) {
+		return fmt.Errorf("archive file not found: %s", archivePath)
+	}
+
+	w.logger.Info("Processing archive", "download_id", download.ID, "archive", archivePath)
+
+	// Extract archive to the same directory
+	extractedFiles, err := w.extractor.Extract(archivePath, download.Directory)
+	if err != nil {
+		return fmt.Errorf("failed to extract archive: %w", err)
+	}
+
+	if len(extractedFiles) == 0 {
+		return fmt.Errorf("no files were extracted from archive")
+	}
+
+	w.logger.Info("Archive extracted successfully", "download_id", download.ID, "extracted_files", len(extractedFiles))
+
+	// Store extracted files in database for tracking
+	if err := w.storeExtractedFiles(download.ID, extractedFiles); err != nil {
+		w.logger.Warn("Failed to store extracted files list", "download_id", download.ID, "error", err)
+		// Don't return error here as extraction was successful
+	}
+
+	// Update download record with extracted files list
+	extractedFilesJSON, err := json.Marshal(extractedFiles)
+	if err != nil {
+		w.logger.Warn("Failed to marshal extracted files list", "download_id", download.ID, "error", err)
+	} else {
+		download.ExtractedFiles = string(extractedFilesJSON)
+		download.UpdatedAt = time.Now()
+		if err := w.db.UpdateDownload(download); err != nil {
+			w.logger.Warn("Failed to update download with extracted files", "download_id", download.ID, "error", err)
+		}
+	}
+
+	// Delete the original archive file after successful extraction
+	if err := w.deleteArchiveFiles(download); err != nil {
+		w.logger.Warn("Failed to delete archive files", "error", err)
+		// Don't return error here as extraction was successful
+	}
+
+	// Clean up non-video files from the extracted files
+	if err := w.cleanup.CleanupExtractedFiles(download.ID); err != nil {
+		w.logger.Warn("File cleanup completed with errors", "download_id", download.ID, "error", err)
+		// Don't return error here as extraction was successful
+	} else {
+		w.logger.Info("File cleanup completed successfully", "download_id", download.ID)
+	}
+
+	// Optionally clean up empty directories
+	if err := w.cleanup.CleanupEmptyDirectories(download.ID, download.Directory); err != nil {
+		w.logger.Warn("Directory cleanup failed", "download_id", download.ID, "error", err)
+		// Don't return error here as the main operation was successful
+	}
+
+	return nil
+}
+
+// deleteArchiveFiles deletes all parts of an archive (handles multi-part archives)
+func (w *Worker) deleteArchiveFiles(download *models.Download) error {
+	archivePath := filepath.Join(download.Directory, download.Filename)
+	
+	// Delete the main archive file
+	if err := os.Remove(archivePath); err != nil && !os.IsNotExist(err) {
+		w.logger.Warn("Failed to delete archive file", "archive", archivePath, "error", err)
+	} else {
+		w.logger.Info("Archive file deleted", "archive", archivePath)
+	}
+	
+	// If this is part of a group, delete all other archive parts in the group
+	if download.GroupID != "" {
+		downloads, err := w.db.GetDownloadsByGroupID(download.GroupID)
+		if err != nil {
+			return fmt.Errorf("failed to get downloads for archive cleanup: %w", err)
+		}
+		
+		for _, groupDownload := range downloads {
+			// Skip the file we already deleted
+			if groupDownload.ID == download.ID {
+				continue
+			}
+			
+			// Check if it's a RAR part file (including parts that aren't marked as archives)
+			filename := strings.ToLower(groupDownload.Filename)
+			if strings.HasSuffix(filename, ".rar") {
+				partPath := filepath.Join(groupDownload.Directory, groupDownload.Filename)
+				if err := os.Remove(partPath); err != nil && !os.IsNotExist(err) {
+					w.logger.Warn("Failed to delete archive part", "archive", partPath, "error", err)
+				} else {
+					w.logger.Info("Archive part deleted", "archive", partPath)
+				}
+			}
+		}
+	}
+	
+	return nil
+}
+
+// storeExtractedFiles stores a list of extracted files in the database for cleanup tracking
+func (w *Worker) storeExtractedFiles(downloadID int64, filePaths []string) error {
+	now := time.Now()
+
+	for _, filePath := range filePaths {
+		extractedFile := &models.ExtractedFile{
+			DownloadID: downloadID,
+			FilePath:   filePath,
+			CreatedAt:  now,
+		}
+
+		if err := w.db.CreateExtractedFile(extractedFile); err != nil {
+			w.logger.Warn("Failed to store extracted file record", "download_id", downloadID, "file", filePath, "error", err)
+			// Continue with other files
+		}
+	}
+
+	return nil
 }

@@ -18,11 +18,12 @@ templ Home(downloads []*models.Download, suggestedDir string, recentDirs []strin
 				<!-- URL Input -->
 				<div>
 					<label for="url" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-						File URL
+						<span id="url-label">File URL</span>
 					</label>
+					<!-- Single URL Input (default) -->
 					<input 
 						type="url" 
-						id="url" 
+						id="url-single" 
 						name="url" 
 						required
 						placeholder="https://example.com/file.zip"
@@ -33,6 +34,33 @@ templ Home(downloads []*models.Download, suggestedDir string, recentDirs []strin
 						hx-include="this"
 						hx-indicator="#directory-suggestion-indicator"
 					/>
+					<!-- Multi URL Textarea (hidden by default) -->
+					<textarea 
+						id="url-multi" 
+						name="urls" 
+						rows="6"
+						placeholder="Enter multiple URLs (one per line or space-separated):&#10;https://example.com/file1.zip&#10;https://example.com/file2.zip&#10;https://example.com/file3.zip"
+						class="hidden w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors resize-vertical"
+						hx-post="/api/directory-suggestion"
+						hx-trigger="keyup changed delay:500ms, paste delay:500ms"
+						hx-target="#directory-suggestion-response"
+						hx-include="this"
+						hx-indicator="#directory-suggestion-indicator"
+					></textarea>
+				</div>
+
+				<!-- Multi-file Mode Toggle -->
+				<div class="flex items-center space-x-3">
+					<input 
+						type="checkbox" 
+						id="multifile-mode" 
+						name="multifile-mode"
+						onchange="toggleMultiFileMode()"
+						class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700"
+					/>
+					<label for="multifile-mode" class="text-sm font-medium text-gray-700 dark:text-gray-300">
+						Multi-file download mode
+					</label>
 				</div>
 
 				<!-- Directory Selection -->

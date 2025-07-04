@@ -9,6 +9,7 @@ import (
 	"debrid-downloader/internal/alldebrid"
 	"debrid-downloader/internal/config"
 	"debrid-downloader/internal/database"
+	"debrid-downloader/internal/downloader"
 	"debrid-downloader/internal/web"
 
 	"github.com/stretchr/testify/require"
@@ -107,14 +108,15 @@ func TestRunServerStartError(t *testing.T) {
 	defer db.Close()
 
 	client := alldebrid.New("test-key")
+	worker := downloader.NewWorker(db, "/tmp/test")
 	cfg := &config.Config{
 		ServerPort: "999999", // Invalid port
 		LogLevel:   "info",
 	}
 
-	server := web.NewServer(db, client, cfg)
+	server := web.NewServer(db, client, cfg, worker)
 
-	err = runServer(server)
+	err = runServer(server, worker, db)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "server failed to start")
 }
@@ -153,7 +155,8 @@ func TestRunInitialization(t *testing.T) {
 	client := alldebrid.New(cfg.AllDebridAPIKey)
 	require.NotNil(t, client)
 
-	server := web.NewServer(db, client, cfg)
+	worker := downloader.NewWorker(db, cfg.BaseDownloadsPath)
+	server := web.NewServer(db, client, cfg, worker)
 	require.NotNil(t, server)
 }
 

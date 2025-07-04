@@ -80,9 +80,16 @@ templ DownloadsListWithPolling(downloads []*models.Download, activeCount int) {
 
 templ DownloadItem(download *models.Download) {
 	<div class={ "download-item bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 relative", templ.KV("pb-16", download.Status == models.StatusDownloading || download.Status == models.StatusPending || download.Status == models.StatusPaused || (download.Status == models.StatusFailed && download.RetryCount < 5)) }>
-		<!-- Header with status badge only -->
-		<div class="flex items-center mb-3">
-			@StatusBadge(download.Status)
+		<!-- Header with status badge and group info -->
+		<div class="flex items-center justify-between mb-3">
+			<div class="flex items-center space-x-2">
+				@StatusBadge(download.Status)
+				if download.GroupID != "" {
+					<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200">
+						Group: { download.GroupID[:8] }...
+					</span>
+				}
+			</div>
 		</div>
 		
 		<!-- Filename below buttons -->

@@ -9,6 +9,7 @@ import (
 	"debrid-downloader/internal/alldebrid"
 	"debrid-downloader/internal/config"
 	"debrid-downloader/internal/database"
+	"debrid-downloader/internal/downloader"
 
 	"github.com/stretchr/testify/require"
 )
@@ -19,12 +20,13 @@ func TestNewServer(t *testing.T) {
 	defer db.Close()
 
 	client := alldebrid.New("test-key")
+	worker := downloader.NewWorker(db, "/tmp/test")
 	cfg := &config.Config{
 		ServerPort: "8080",
 		LogLevel:   "info",
 	}
 
-	server := NewServer(db, client, cfg)
+	server := NewServer(db, client, cfg, worker)
 	require.NotNil(t, server)
 	require.Equal(t, ":8080", server.server.Addr)
 }
@@ -35,12 +37,13 @@ func TestServer_StartAndShutdown(t *testing.T) {
 	defer db.Close()
 
 	client := alldebrid.New("test-key")
+	worker := downloader.NewWorker(db, "/tmp/test")
 	cfg := &config.Config{
 		ServerPort: "0", // Use random port
 		LogLevel:   "info",
 	}
 
-	server := NewServer(db, client, cfg)
+	server := NewServer(db, client, cfg, worker)
 
 	// Test that we can start and shutdown the server
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

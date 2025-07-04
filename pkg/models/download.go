@@ -36,6 +36,9 @@ type Download struct {
 	CompletedAt     *time.Time     `json:"completed_at" db:"completed_at"`
 	PausedAt        *time.Time     `json:"paused_at" db:"paused_at"`
 	TotalPausedTime int64          `json:"total_paused_time" db:"total_paused_time"` // Total paused time in seconds
+	GroupID         string         `json:"group_id" db:"group_id"`                   // Group ID for multi-file downloads
+	IsArchive       bool           `json:"is_archive" db:"is_archive"`               // Whether this is an archive file
+	ExtractedFiles  string         `json:"extracted_files" db:"extracted_files"`     // JSON array of extracted file paths
 }
 
 // DirectoryMapping represents a learned directory suggestion
@@ -47,4 +50,33 @@ type DirectoryMapping struct {
 	UseCount        int       `json:"use_count" db:"use_count"`
 	LastUsed        time.Time `json:"last_used" db:"last_used"`
 	CreatedAt       time.Time `json:"created_at" db:"created_at"`
+}
+
+// DownloadGroupStatus represents the status of a download group
+type DownloadGroupStatus string
+
+const (
+	GroupStatusDownloading DownloadGroupStatus = "downloading"
+	GroupStatusProcessing  DownloadGroupStatus = "processing"
+	GroupStatusCompleted   DownloadGroupStatus = "completed"
+	GroupStatusFailed      DownloadGroupStatus = "failed"
+)
+
+// DownloadGroup represents a group of related downloads
+type DownloadGroup struct {
+	ID                 string              `json:"id" db:"id"`
+	CreatedAt          time.Time           `json:"created_at" db:"created_at"`
+	TotalDownloads     int                 `json:"total_downloads" db:"total_downloads"`
+	CompletedDownloads int                 `json:"completed_downloads" db:"completed_downloads"`
+	Status             DownloadGroupStatus `json:"status" db:"status"`
+	ProcessingError    string              `json:"processing_error" db:"processing_error"`
+}
+
+// ExtractedFile represents a file that was extracted from an archive
+type ExtractedFile struct {
+	ID         int64      `json:"id" db:"id"`
+	DownloadID int64      `json:"download_id" db:"download_id"`
+	FilePath   string     `json:"file_path" db:"file_path"`
+	CreatedAt  time.Time  `json:"created_at" db:"created_at"`
+	DeletedAt  *time.Time `json:"deleted_at" db:"deleted_at"`
 }

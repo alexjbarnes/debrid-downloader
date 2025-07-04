@@ -22,11 +22,21 @@ type DB struct {
 
 // New creates a new database connection and initializes the schema
 func New(dbPath string) (*DB, error) {
-	conn, err := sql.Open("sqlite", dbPath)
+	// Add connection parameters to help with concurrent access
+	connString := dbPath
+	if dbPath != ":memory:" {
+		connString = dbPath + "?_busy_timeout=30000&_journal_mode=WAL&_synchronous=NORMAL"
+	}
+	
+	conn, err := sql.Open("sqlite", connString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
+	// Set connection pool settings
+	conn.SetMaxOpenConns(1) // SQLite doesn't handle concurrent writes well
+	conn.SetMaxIdleConns(1)
+	
 	db := &DB{conn: conn}
 
 	if err := db.initSchema(); err != nil {
@@ -63,11 +73,15 @@ func (db *DB) initSchema() error {
 		started_at DATETIME,
 		completed_at DATETIME,
 		paused_at DATETIME,
-		total_paused_time INTEGER DEFAULT 0
+		total_paused_time INTEGER DEFAULT 0,
+		group_id TEXT,
+		is_archive BOOLEAN DEFAULT FALSE,
+		extracted_files TEXT
 	);
 
 	CREATE INDEX IF NOT EXISTS idx_downloads_status ON downloads(status);
 	CREATE INDEX IF NOT EXISTS idx_downloads_created_at ON downloads(created_at);
+	CREATE INDEX IF NOT EXISTS idx_downloads_group_id ON downloads(group_id);
 
 	CREATE TABLE IF NOT EXISTS directory_mappings (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -81,6 +95,27 @@ func (db *DB) initSchema() error {
 
 	CREATE INDEX IF NOT EXISTS idx_directory_mappings_pattern ON directory_mappings(filename_pattern);
 	CREATE INDEX IF NOT EXISTS idx_directory_mappings_use_count ON directory_mappings(use_count DESC);
+
+	CREATE TABLE IF NOT EXISTS download_groups (
+		id TEXT PRIMARY KEY,
+		created_at DATETIME NOT NULL,
+		total_downloads INTEGER NOT NULL,
+		completed_downloads INTEGER DEFAULT 0,
+		status TEXT NOT NULL,
+		processing_error TEXT
+	);
+
+	CREATE TABLE IF NOT EXISTS extracted_files (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		download_id INTEGER NOT NULL,
+		file_path TEXT NOT NULL,
+		created_at DATETIME NOT NULL,
+		deleted_at DATETIME,
+		FOREIGN KEY (download_id) REFERENCES downloads(id)
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_extracted_files_download_id ON extracted_files(download_id);
+	CREATE INDEX IF NOT EXISTS idx_extracted_files_deleted_at ON extracted_files(deleted_at);
 	`
 
 	_, err := db.conn.Exec(schema)
@@ -94,8 +129,9 @@ func (db *DB) CreateDownload(download *models.Download) error {
 		original_url, unrestricted_url, filename, directory, status,
 		progress, file_size, downloaded_bytes, download_speed,
 		error_message, retry_count, created_at, updated_at,
-		started_at, completed_at, paused_at, total_paused_time
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		started_at, completed_at, paused_at, total_paused_time,
+		group_id, is_archive, extracted_files
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	result, err := db.conn.Exec(query,
@@ -105,6 +141,7 @@ func (db *DB) CreateDownload(download *models.Download) error {
 		download.ErrorMessage, download.RetryCount, download.CreatedAt,
 		download.UpdatedAt, download.StartedAt, download.CompletedAt,
 		download.PausedAt, download.TotalPausedTime,
+		download.GroupID, download.IsArchive, download.ExtractedFiles,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create download: %w", err)
@@ -125,7 +162,8 @@ func (db *DB) GetDownload(id int64) (*models.Download, error) {
 	SELECT id, original_url, unrestricted_url, filename, directory, status,
 		   progress, file_size, downloaded_bytes, download_speed,
 		   error_message, retry_count, created_at, updated_at,
-		   started_at, completed_at, paused_at, total_paused_time
+		   started_at, completed_at, paused_at, total_paused_time,
+		   group_id, is_archive, extracted_files
 	FROM downloads WHERE id = ?
 	`
 
@@ -137,6 +175,7 @@ func (db *DB) GetDownload(id int64) (*models.Download, error) {
 		&download.DownloadSpeed, &download.ErrorMessage, &download.RetryCount,
 		&download.CreatedAt, &download.UpdatedAt, &download.StartedAt,
 		&download.CompletedAt, &download.PausedAt, &download.TotalPausedTime,
+		&download.GroupID, &download.IsArchive, &download.ExtractedFiles,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -155,7 +194,8 @@ func (db *DB) UpdateDownload(download *models.Download) error {
 		unrestricted_url = ?, status = ?, progress = ?, file_size = ?,
 		downloaded_bytes = ?, download_speed = ?, error_message = ?,
 		retry_count = ?, updated_at = ?, started_at = ?, completed_at = ?,
-		paused_at = ?, total_paused_time = ?
+		paused_at = ?, total_paused_time = ?, group_id = ?, is_archive = ?,
+		extracted_files = ?
 	WHERE id = ?
 	`
 
@@ -164,7 +204,8 @@ func (db *DB) UpdateDownload(download *models.Download) error {
 		download.FileSize, download.DownloadedBytes, download.DownloadSpeed,
 		download.ErrorMessage, download.RetryCount, download.UpdatedAt,
 		download.StartedAt, download.CompletedAt, download.PausedAt,
-		download.TotalPausedTime, download.ID,
+		download.TotalPausedTime, download.GroupID, download.IsArchive,
+		download.ExtractedFiles, download.ID,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to update download: %w", err)
@@ -179,7 +220,8 @@ func (db *DB) ListDownloads(limit, offset int) ([]*models.Download, error) {
 	SELECT id, original_url, unrestricted_url, filename, directory, status,
 		   progress, file_size, downloaded_bytes, download_speed,
 		   error_message, retry_count, created_at, updated_at,
-		   started_at, completed_at, paused_at, total_paused_time
+		   started_at, completed_at, paused_at, total_paused_time,
+		   group_id, is_archive, extracted_files
 	FROM downloads 
 	ORDER BY created_at DESC 
 	LIMIT ? OFFSET ?
@@ -201,6 +243,7 @@ func (db *DB) ListDownloads(limit, offset int) ([]*models.Download, error) {
 			&download.DownloadSpeed, &download.ErrorMessage, &download.RetryCount,
 			&download.CreatedAt, &download.UpdatedAt, &download.StartedAt,
 			&download.CompletedAt, &download.PausedAt, &download.TotalPausedTime,
+			&download.GroupID, &download.IsArchive, &download.ExtractedFiles,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan download: %w", err)
@@ -217,7 +260,8 @@ func (db *DB) SearchDownloads(searchTerm, statusFilter string, limit, offset int
 	SELECT id, original_url, unrestricted_url, filename, directory, status,
 		   progress, file_size, downloaded_bytes, download_speed,
 		   error_message, retry_count, created_at, updated_at,
-		   started_at, completed_at, paused_at, total_paused_time
+		   started_at, completed_at, paused_at, total_paused_time,
+		   group_id, is_archive, extracted_files
 	FROM downloads 
 	WHERE 1=1`
 
@@ -287,6 +331,7 @@ func (db *DB) SearchDownloads(searchTerm, statusFilter string, limit, offset int
 			&download.DownloadSpeed, &download.ErrorMessage, &download.RetryCount,
 			&download.CreatedAt, &download.UpdatedAt, &download.StartedAt,
 			&download.CompletedAt, &download.PausedAt, &download.TotalPausedTime,
+			&download.GroupID, &download.IsArchive, &download.ExtractedFiles,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan download: %w", err)
@@ -463,4 +508,172 @@ func (db *DB) GetDirectorySuggestionsForURL(url string) ([]*models.DirectoryMapp
 	}
 
 	return mappings, nil
+}
+
+// CreateDownloadGroup creates a new download group record
+func (db *DB) CreateDownloadGroup(group *models.DownloadGroup) error {
+	query := `
+	INSERT INTO download_groups (
+		id, created_at, total_downloads, completed_downloads, status, processing_error
+	) VALUES (?, ?, ?, ?, ?, ?)
+	`
+
+	_, err := db.conn.Exec(query,
+		group.ID, group.CreatedAt, group.TotalDownloads,
+		group.CompletedDownloads, group.Status, group.ProcessingError,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create download group: %w", err)
+	}
+
+	return nil
+}
+
+// GetDownloadGroup retrieves a download group by ID
+func (db *DB) GetDownloadGroup(id string) (*models.DownloadGroup, error) {
+	query := `
+	SELECT id, created_at, total_downloads, completed_downloads, status, processing_error
+	FROM download_groups WHERE id = ?
+	`
+
+	var group models.DownloadGroup
+	err := db.conn.QueryRow(query, id).Scan(
+		&group.ID, &group.CreatedAt, &group.TotalDownloads,
+		&group.CompletedDownloads, &group.Status, &group.ProcessingError,
+	)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("download group not found")
+		}
+		return nil, fmt.Errorf("failed to get download group: %w", err)
+	}
+
+	return &group, nil
+}
+
+// UpdateDownloadGroup updates an existing download group record
+func (db *DB) UpdateDownloadGroup(group *models.DownloadGroup) error {
+	query := `
+	UPDATE download_groups SET
+		completed_downloads = ?, status = ?, processing_error = ?
+	WHERE id = ?
+	`
+
+	_, err := db.conn.Exec(query,
+		group.CompletedDownloads, group.Status, group.ProcessingError, group.ID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update download group: %w", err)
+	}
+
+	return nil
+}
+
+// GetDownloadsByGroupID retrieves all downloads for a specific group
+func (db *DB) GetDownloadsByGroupID(groupID string) ([]*models.Download, error) {
+	query := `
+	SELECT id, original_url, unrestricted_url, filename, directory, status,
+		   progress, file_size, downloaded_bytes, download_speed,
+		   error_message, retry_count, created_at, updated_at,
+		   started_at, completed_at, paused_at, total_paused_time,
+		   group_id, is_archive, extracted_files
+	FROM downloads 
+	WHERE group_id = ?
+	ORDER BY created_at ASC
+	`
+
+	rows, err := db.conn.Query(query, groupID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get downloads by group: %w", err)
+	}
+	defer rows.Close()
+
+	var downloads []*models.Download
+	for rows.Next() {
+		var download models.Download
+		err := rows.Scan(
+			&download.ID, &download.OriginalURL, &download.UnrestrictedURL,
+			&download.Filename, &download.Directory, &download.Status,
+			&download.Progress, &download.FileSize, &download.DownloadedBytes,
+			&download.DownloadSpeed, &download.ErrorMessage, &download.RetryCount,
+			&download.CreatedAt, &download.UpdatedAt, &download.StartedAt,
+			&download.CompletedAt, &download.PausedAt, &download.TotalPausedTime,
+			&download.GroupID, &download.IsArchive, &download.ExtractedFiles,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan download: %w", err)
+		}
+		downloads = append(downloads, &download)
+	}
+
+	return downloads, nil
+}
+
+// CreateExtractedFile creates a record for an extracted file
+func (db *DB) CreateExtractedFile(file *models.ExtractedFile) error {
+	query := `
+	INSERT INTO extracted_files (
+		download_id, file_path, created_at, deleted_at
+	) VALUES (?, ?, ?, ?)
+	`
+
+	result, err := db.conn.Exec(query,
+		file.DownloadID, file.FilePath, file.CreatedAt, file.DeletedAt,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create extracted file: %w", err)
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return fmt.Errorf("failed to get last insert id: %w", err)
+	}
+
+	file.ID = id
+	return nil
+}
+
+// GetExtractedFilesByDownloadID retrieves all extracted files for a download
+func (db *DB) GetExtractedFilesByDownloadID(downloadID int64) ([]*models.ExtractedFile, error) {
+	query := `
+	SELECT id, download_id, file_path, created_at, deleted_at
+	FROM extracted_files 
+	WHERE download_id = ? AND deleted_at IS NULL
+	ORDER BY created_at ASC
+	`
+
+	rows, err := db.conn.Query(query, downloadID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get extracted files: %w", err)
+	}
+	defer rows.Close()
+
+	var files []*models.ExtractedFile
+	for rows.Next() {
+		var file models.ExtractedFile
+		err := rows.Scan(
+			&file.ID, &file.DownloadID, &file.FilePath,
+			&file.CreatedAt, &file.DeletedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan extracted file: %w", err)
+		}
+		files = append(files, &file)
+	}
+
+	return files, nil
+}
+
+// MarkExtractedFileDeleted marks an extracted file as deleted
+func (db *DB) MarkExtractedFileDeleted(id int64, deletedAt time.Time) error {
+	query := `
+	UPDATE extracted_files SET deleted_at = ? WHERE id = ?
+	`
+
+	_, err := db.conn.Exec(query, deletedAt, id)
+	if err != nil {
+		return fmt.Errorf("failed to mark extracted file as deleted: %w", err)
+	}
+
+	return nil
 }

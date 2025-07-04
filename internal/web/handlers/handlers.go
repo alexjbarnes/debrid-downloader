@@ -19,6 +19,7 @@ import (
 	"debrid-downloader/internal/folder"
 	"debrid-downloader/internal/web/templates"
 	"debrid-downloader/pkg/models"
+	"github.com/google/uuid"
 )
 
 // Handlers contains all HTTP handlers and their dependencies
@@ -105,87 +106,202 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 	if err := r.ParseForm(); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		component := templates.DownloadResult(false, "Failed to parse form data")
-		component.Render(r.Context(), w)
+		if err := component.Render(r.Context(), w); err != nil {
+			h.logger.Error("Failed to render component", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
-	url := r.FormValue("url")
 	directory := r.FormValue("directory")
-
-	if url == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		component := templates.DownloadResult(false, "URL is required")
-		component.Render(r.Context(), w)
-		return
-	}
-
 	if directory == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		component := templates.DownloadResult(false, "Directory is required")
-		component.Render(r.Context(), w)
+		if err := component.Render(r.Context(), w); err != nil {
+			h.logger.Error("Failed to render component", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
-	// Unrestrict the URL using AllDebrid
-	result, err := h.allDebridClient.UnrestrictLink(r.Context(), url)
-	if err != nil {
-		h.logger.Error("Failed to unrestrict URL", "error", err, "url", url)
+	// Parse URLs - check if it's single or multi-URL submission
+	var urls []string
+
+	// Check for multi-URL submission
+	multiURLs := r.FormValue("urls")
+	if multiURLs != "" {
+		// Parse multiple URLs
+		urls = h.parseMultipleURLs(multiURLs)
+		if len(urls) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			component := templates.DownloadResult(false, "No valid URLs found")
+			if err := component.Render(r.Context(), w); err != nil {
+				h.logger.Error("Failed to render component", "error", err)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			return
+		}
+	} else {
+		// Single URL submission
+		singleURL := r.FormValue("url")
+		if singleURL == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			component := templates.DownloadResult(false, "URL is required")
+			if err := component.Render(r.Context(), w); err != nil {
+				h.logger.Error("Failed to render component", "error", err)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			return
+		}
+		urls = []string{singleURL}
+	}
+
+	var groupID string
+	var downloads []*models.Download
+
+	// If multiple URLs, create a group
+	if len(urls) > 1 {
+		groupID = uuid.New().String()
+
+		// Create download group record
+		group := &models.DownloadGroup{
+			ID:                 groupID,
+			CreatedAt:          time.Now(),
+			TotalDownloads:     len(urls),
+			CompletedDownloads: 0,
+			Status:             models.GroupStatusDownloading,
+		}
+
+		if err := h.db.CreateDownloadGroup(group); err != nil {
+			h.logger.Error("Failed to create download group", "error", err)
+			w.WriteHeader(http.StatusInternalServerError)
+			component := templates.DownloadResult(false, "Failed to create download group")
+			if err := component.Render(r.Context(), w); err != nil {
+				h.logger.Error("Failed to render component", "error", err)
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+				return
+			}
+			return
+		}
+	}
+
+	// Process each URL
+	for i, url := range urls {
+		// Unrestrict the URL using AllDebrid
+		result, err := h.allDebridClient.UnrestrictLink(r.Context(), url)
+		if err != nil {
+			h.logger.Error("Failed to unrestrict URL", "error", err, "url", url, "group_id", groupID)
+			// For multi-URL, continue with other URLs; for single URL, return error
+			if len(urls) == 1 {
+				w.WriteHeader(http.StatusBadRequest)
+				component := templates.DownloadResult(false, fmt.Sprintf("Failed to unrestrict URL: %s", err.Error()))
+				if err := component.Render(r.Context(), w); err != nil {
+					h.logger.Error("Failed to render component", "error", err)
+					http.Error(w, "Internal server error", http.StatusInternalServerError)
+					return
+				}
+				return
+			}
+			continue // Skip this URL but continue with others
+		}
+
+		// Ensure unique filename by checking for existing files
+		uniqueFilename := h.ensureUniqueFilename(result.Filename, directory)
+
+		// Detect if this is an archive file
+		isArchive := h.isArchiveFile(result.Filename)
+
+		// Create download record
+		download := &models.Download{
+			OriginalURL:     url,
+			UnrestrictedURL: result.UnrestrictedURL,
+			Filename:        uniqueFilename,
+			Directory:       directory,
+			Status:          models.StatusPending,
+			Progress:        0.0,
+			FileSize:        result.FileSize,
+			DownloadedBytes: 0,
+			DownloadSpeed:   0.0,
+			RetryCount:      0,
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
+			GroupID:         groupID,
+			IsArchive:       isArchive,
+			ExtractedFiles:  "",
+		}
+
+		if err := h.db.CreateDownload(download); err != nil {
+			h.logger.Error("Failed to create download record", "error", err, "url", url, "group_id", groupID)
+			if len(urls) == 1 {
+				w.WriteHeader(http.StatusInternalServerError)
+				component := templates.DownloadResult(false, "Failed to create download record")
+				if err := component.Render(r.Context(), w); err != nil {
+					h.logger.Error("Failed to render component", "error", err)
+					http.Error(w, "Internal server error", http.StatusInternalServerError)
+					return
+				}
+				return
+			}
+			continue // Skip this URL but continue with others
+		}
+
+		downloads = append(downloads, download)
+
+		// Create or update directory mapping for future suggestions
+		if err := h.createOrUpdateDirectoryMapping(result.Filename, url, directory); err != nil {
+			h.logger.Warn("Failed to update directory mapping", "error", err, "filename", result.Filename, "url", url, "directory", directory)
+		}
+
+		// Queue the download for processing
+		h.downloadWorker.QueueDownload(download.ID)
+
+		h.logger.Info("Download submitted", "url", url, "directory", directory, "filename", result.Filename, "download_id", download.ID, "group_id", groupID, "is_archive", isArchive, "position", i+1, "total", len(urls))
+	}
+
+	// Check if any downloads were created
+	if len(downloads) == 0 {
 		w.WriteHeader(http.StatusBadRequest)
-		component := templates.DownloadResult(false, err.Error())
-		component.Render(r.Context(), w)
+		component := templates.DownloadResult(false, "No downloads could be created")
+		if err := component.Render(r.Context(), w); err != nil {
+			h.logger.Error("Failed to render component", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
-	// Ensure unique filename by checking for existing files
-	uniqueFilename := h.ensureUniqueFilename(result.Filename, directory)
-
-	// Create download record
-	download := &models.Download{
-		OriginalURL:     url,
-		UnrestrictedURL: result.UnrestrictedURL,
-		Filename:        uniqueFilename,
-		Directory:       directory,
-		Status:          models.StatusPending,
-		Progress:        0.0,
-		FileSize:        result.FileSize,
-		DownloadedBytes: 0,
-		DownloadSpeed:   0.0,
-		RetryCount:      0,
-		CreatedAt:       time.Now(),
-		UpdatedAt:       time.Now(),
+	// Create success message
+	var successMessage string
+	if len(downloads) == 1 {
+		successMessage = "Download added to queue successfully"
+	} else {
+		successMessage = fmt.Sprintf("%d downloads added to queue successfully", len(downloads))
+		if groupID != "" {
+			successMessage += fmt.Sprintf(" (Group: %s)", groupID[:8]) // Show first 8 chars of group ID
+		}
 	}
-
-	if err := h.db.CreateDownload(download); err != nil {
-		h.logger.Error("Failed to create download record", "error", err)
-		w.WriteHeader(http.StatusInternalServerError)
-		component := templates.DownloadResult(false, "Failed to create download record")
-		component.Render(r.Context(), w)
-		return
-	}
-
-	// Create or update directory mapping for future suggestions
-	if err := h.createOrUpdateDirectoryMapping(result.Filename, url, directory); err != nil {
-		h.logger.Warn("Failed to update directory mapping", "error", err, "filename", result.Filename, "url", url, "directory", directory)
-	}
-
-	// Queue the download for processing
-	h.downloadWorker.QueueDownload(download.ID)
-
-	h.logger.Info("Download submitted", "url", url, "directory", directory, "filename", result.Filename, "download_id", download.ID)
 
 	// Get updated downloads for the list
-	downloads, err := h.db.ListDownloads(50, 0)
+	allDownloads, err := h.db.ListDownloads(50, 0)
 	if err != nil {
 		h.logger.Error("Failed to get downloads for refresh", "error", err)
 		// Still return success, but without the refresh
-		component := templates.DownloadResult(true, "Download added to queue successfully")
-		component.Render(r.Context(), w)
+		component := templates.DownloadResult(true, successMessage)
+		if err := component.Render(r.Context(), w); err != nil {
+			h.logger.Error("Failed to render component", "error", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
 	// Count active downloads for polling logic
 	activeCount := 0
-	for _, download := range downloads {
+	for _, download := range allDownloads {
 		if download.Status == models.StatusPending ||
 			download.Status == models.StatusDownloading ||
 			download.Status == models.StatusPaused {
@@ -197,7 +313,9 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 	suggestedDir, _ := h.getDirectorySuggestions("")
 
 	// Send empty result div to clear any previous messages
-	w.Write([]byte(`<div id="result" class="mt-6"></div>`))
+	if _, err := w.Write([]byte(`<div id="result" class="mt-6"></div>`)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
 
 	// Send success button state as out-of-band swap
 	successButton := templates.SubmitButton("success")
@@ -205,26 +323,49 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("Failed to render success button", "error", err)
 	}
 
-	// Send out-of-band swap to reset the URL input
-	w.Write([]byte(`<input type="url" id="url" name="url" required placeholder="https://example.com/file.zip" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors" hx-post="/api/directory-suggestion" hx-trigger="keyup changed delay:500ms, paste delay:500ms" hx-target="#directory-suggestion-response" hx-include="this" hx-indicator="#directory-suggestion-indicator" hx-swap-oob="true" value="">`))
+	// Send out-of-band swap to reset the single URL input
+	if _, err := w.Write([]byte(`<input type="url" id="url-single" name="url" required placeholder="https://example.com/file.zip" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors" hx-post="/api/directory-suggestion" hx-trigger="keyup changed delay:500ms, paste delay:500ms" hx-target="#directory-suggestion-response" hx-include="this" hx-indicator="#directory-suggestion-indicator" hx-swap-oob="true" value="">`)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
+
+	// Send out-of-band swap to reset the multi URL textarea
+	if _, err := w.Write([]byte(`<textarea id="url-multi" name="urls" rows="6" placeholder="Enter multiple URLs (one per line or space-separated):&#10;https://example.com/file1.zip&#10;https://example.com/file2.zip&#10;https://example.com/file3.zip" class="hidden w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors resize-vertical" hx-post="/api/directory-suggestion" hx-trigger="keyup changed delay:500ms, paste delay:500ms" hx-target="#directory-suggestion-response" hx-include="this" hx-indicator="#directory-suggestion-indicator" hx-swap-oob="true"></textarea>`)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
 
 	// Send out-of-band swap to reset the directory fields
-	w.Write([]byte(`<input type="hidden" id="directory" name="directory" value="`))
-	w.Write([]byte(suggestedDir))
-	w.Write([]byte(`" hx-swap-oob="true">`))
+	if _, err := w.Write([]byte(`<input type="hidden" id="directory" name="directory" value="`)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
+	if _, err := w.Write([]byte(suggestedDir)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
+	if _, err := w.Write([]byte(`" hx-swap-oob="true">`)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
 
-	w.Write([]byte(`<span id="selected-directory" hx-swap-oob="true">`))
-	w.Write([]byte(suggestedDir))
-	w.Write([]byte(`</span>`))
+	if _, err := w.Write([]byte(`<span id="selected-directory" hx-swap-oob="true">`)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
+	if _, err := w.Write([]byte(suggestedDir)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
+	if _, err := w.Write([]byte(`</span>`)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
 
 	// Send out-of-band swap to update downloads list
-	w.Write([]byte(`<div id="downloads-list" class="space-y-4" hx-post="/downloads/search" hx-trigger="load, refresh" hx-include="#search-form" hx-swap="innerHTML" hx-swap-oob="true">`))
-	downloadsComponent := templates.DownloadsList(downloads)
+	if _, err := w.Write([]byte(`<div id="downloads-list" class="space-y-4" hx-post="/downloads/search" hx-trigger="load, refresh" hx-include="#search-form" hx-swap="innerHTML" hx-swap-oob="true">`)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
+	downloadsComponent := templates.DownloadsList(allDownloads)
 	if err := downloadsComponent.Render(r.Context(), w); err != nil {
 		h.logger.Error("Failed to render downloads list", "error", err)
 		return
 	}
-	w.Write([]byte(`</div>`))
+	if _, err := w.Write([]byte(`</div>`)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
 
 	// Also send updated polling trigger
 	pollingComponent := templates.DynamicPollingTrigger("polling-trigger", "/downloads/search", "#downloads-list", activeCount)
@@ -881,22 +1022,43 @@ func (h *Handlers) GetDirectorySuggestion(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Content-Type", "text/plain")
 
 	// Try both query parameter and form data
-	url := r.URL.Query().Get("url")
-	if url == "" && r.Method == "POST" {
+	var url string
+	if r.Method == "POST" {
 		if err := r.ParseForm(); err == nil {
+			// Check for single URL
 			url = r.FormValue("url")
+
+			// If no single URL, check for multi-URLs and use the first one
+			if url == "" {
+				multiURLs := r.FormValue("urls")
+				if multiURLs != "" {
+					urls := h.parseMultipleURLs(multiURLs)
+					if len(urls) > 0 {
+						url = urls[0] // Use first URL for suggestion
+					}
+				}
+			}
 		}
+	}
+
+	// Try query parameter if no form data
+	if url == "" {
+		url = r.URL.Query().Get("url")
 	}
 
 	if url == "" {
 		// Return base path if no URL provided
-		w.Write([]byte(h.folderService.BasePath))
+		if _, err := w.Write([]byte(h.folderService.BasePath)); err != nil {
+			h.logger.Error("Failed to write response", "error", err)
+		}
 		return
 	}
 
 	// Get directory suggestion based on URL fuzzy matching
 	suggestedDir, _ := h.getDirectorySuggestionsForURL(url)
-	w.Write([]byte(suggestedDir))
+	if _, err := w.Write([]byte(suggestedDir)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
 }
 
 // CreateTestFailedDownload creates a test failed download for testing retry functionality
@@ -939,7 +1101,11 @@ func (h *Handlers) CreateTestFailedDownload(w http.ResponseWriter, r *http.Reque
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.logger.Error("Failed to encode response", "error", err)
+		http.Error(w, `{"error": "Failed to encode response"}`, http.StatusInternalServerError)
+		return
+	}
 }
 
 // PauseDownload handles pausing an active download
@@ -1096,6 +1262,58 @@ func (h *Handlers) ensureUniqueFilename(filename, directory string) string {
 	}
 
 	return filename
+}
+
+// parseMultipleURLs parses a string containing multiple URLs separated by whitespace or newlines
+func (h *Handlers) parseMultipleURLs(input string) []string {
+	var urls []string
+
+	// Split on both newlines and spaces, then filter for HTTP URLs
+	lines := strings.Fields(strings.ReplaceAll(input, "\n", " "))
+
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line != "" && (strings.HasPrefix(line, "http://") || strings.HasPrefix(line, "https://")) {
+			urls = append(urls, line)
+		}
+	}
+
+	return urls
+}
+
+// isArchiveFile checks if a filename is an archive that should be extracted
+func (h *Handlers) isArchiveFile(filename string) bool {
+	ext := strings.ToLower(filepath.Ext(filename))
+	lowerFilename := strings.ToLower(filename)
+	
+	// For RAR files, be more selective about multi-part archives
+	if ext == ".rar" {
+		// If it's a multi-part RAR, only mark the first part as an archive
+		if strings.Contains(lowerFilename, ".part") {
+			return strings.Contains(lowerFilename, ".part1.rar") || 
+				   strings.Contains(lowerFilename, ".part01.rar") || 
+				   strings.Contains(lowerFilename, ".part001.rar")
+		}
+		// Single RAR files are archives
+		return true
+	}
+	
+	// Other archive formats
+	archiveExts := []string{".zip", ".7z", ".tar", ".gz", ".bz2", ".xz"}
+	for _, archiveExt := range archiveExts {
+		if ext == archiveExt {
+			return true
+		}
+	}
+
+	// Check for compound extensions like .tar.gz
+	if strings.HasSuffix(lowerFilename, ".tar.gz") ||
+		strings.HasSuffix(lowerFilename, ".tar.bz2") ||
+		strings.HasSuffix(lowerFilename, ".tar.xz") {
+		return true
+	}
+
+	return false
 }
 
 // getSmartDirectorySuggestion analyzes URL to suggest appropriate directory

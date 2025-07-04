@@ -31,14 +31,14 @@ func Home(downloads []*models.Download, suggestedDir string, recentDirs []string
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"space-y-6\"><!-- Download Form Section --><div class=\"bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6\"><h2 class=\"text-2xl font-semibold text-gray-900 dark:text-white mb-6\">Add New Download</h2><form hx-post=\"/download\" hx-target=\"#result\" hx-indicator=\"#submit-button\" hx-on=\"htmx:afterRequest: if(event.detail.successful) { /* form reset handled server-side via out-of-band swaps */ }\" class=\"space-y-6\"><!-- URL Input --><div><label for=\"url\" class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">File URL</label> <input type=\"url\" id=\"url\" name=\"url\" required placeholder=\"https://example.com/file.zip\" class=\"w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors\" hx-post=\"/api/directory-suggestion\" hx-trigger=\"keyup changed delay:500ms, paste delay:500ms\" hx-target=\"#directory-suggestion-response\" hx-include=\"this\" hx-indicator=\"#directory-suggestion-indicator\"></div><!-- Directory Selection --><div><label for=\"directory\" class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Download Directory</label><div class=\"space-y-2 relative\"><!-- Hidden input for form submission --><input type=\"hidden\" id=\"directory\" name=\"directory\" value=\"")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"space-y-6\"><!-- Download Form Section --><div class=\"bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6\"><h2 class=\"text-2xl font-semibold text-gray-900 dark:text-white mb-6\">Add New Download</h2><form hx-post=\"/download\" hx-target=\"#result\" hx-indicator=\"#submit-button\" hx-on=\"htmx:afterRequest: if(event.detail.successful) { /* form reset handled server-side via out-of-band swaps */ }\" class=\"space-y-6\"><!-- URL Input --><div><label for=\"url\" class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\"><span id=\"url-label\">File URL</span></label><!-- Single URL Input (default) --><input type=\"url\" id=\"url-single\" name=\"url\" required placeholder=\"https://example.com/file.zip\" class=\"w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors\" hx-post=\"/api/directory-suggestion\" hx-trigger=\"keyup changed delay:500ms, paste delay:500ms\" hx-target=\"#directory-suggestion-response\" hx-include=\"this\" hx-indicator=\"#directory-suggestion-indicator\"><!-- Multi URL Textarea (hidden by default) --><textarea id=\"url-multi\" name=\"urls\" rows=\"6\" placeholder=\"Enter multiple URLs (one per line or space-separated):&#10;https://example.com/file1.zip&#10;https://example.com/file2.zip&#10;https://example.com/file3.zip\" class=\"hidden w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors resize-vertical\" hx-post=\"/api/directory-suggestion\" hx-trigger=\"keyup changed delay:500ms, paste delay:500ms\" hx-target=\"#directory-suggestion-response\" hx-include=\"this\" hx-indicator=\"#directory-suggestion-indicator\"></textarea></div><!-- Multi-file Mode Toggle --><div class=\"flex items-center space-x-3\"><input type=\"checkbox\" id=\"multifile-mode\" name=\"multifile-mode\" onchange=\"toggleMultiFileMode()\" class=\"h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700\"> <label for=\"multifile-mode\" class=\"text-sm font-medium text-gray-700 dark:text-gray-300\">Multi-file download mode</label></div><!-- Directory Selection --><div><label for=\"directory\" class=\"block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2\">Download Directory</label><div class=\"space-y-2 relative\"><!-- Hidden input for form submission --><input type=\"hidden\" id=\"directory\" name=\"directory\" value=\"")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
 		var templ_7745c5c3_Var2 string
 		templ_7745c5c3_Var2, templ_7745c5c3_Err = templ.JoinStringErrs(suggestedDir)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 45, Col: 79}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 73, Col: 79}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var2))
 		if templ_7745c5c3_Err != nil {
@@ -51,7 +51,7 @@ func Home(downloads []*models.Download, suggestedDir string, recentDirs []string
 		var templ_7745c5c3_Var3 string
 		templ_7745c5c3_Var3, templ_7745c5c3_Err = templ.JoinStringErrs(suggestedDir)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 54, Col: 51}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 82, Col: 51}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var3))
 		if templ_7745c5c3_Err != nil {
@@ -74,7 +74,7 @@ func Home(downloads []*models.Download, suggestedDir string, recentDirs []string
 				var templ_7745c5c3_Var4 string
 				templ_7745c5c3_Var4, templ_7745c5c3_Err = templ.JoinStringErrs(dir)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 160, Col: 24}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 188, Col: 24}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var4))
 				if templ_7745c5c3_Err != nil {
@@ -87,7 +87,7 @@ func Home(downloads []*models.Download, suggestedDir string, recentDirs []string
 				var templ_7745c5c3_Var5 string
 				templ_7745c5c3_Var5, templ_7745c5c3_Err = templ.JoinStringErrs(dir)
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 164, Col: 15}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/home.templ`, Line: 192, Col: 15}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var5))
 				if templ_7745c5c3_Err != nil {

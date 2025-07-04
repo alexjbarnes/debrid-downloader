@@ -426,6 +426,50 @@ templ Base(title string, content templ.Component) {
 						directoryInput.value = defaultDir;
 						selectedDirectoryDisplay.textContent = defaultDir;
 					}
+					
+					// Reset multi-file mode
+					const multifileCheckbox = document.getElementById('multifile-mode');
+					if (multifileCheckbox) {
+						multifileCheckbox.checked = false;
+						toggleMultiFileMode(); // Reset to single URL mode
+					}
+				}
+				
+				// Toggle between single URL input and multi-URL textarea
+				window.toggleMultiFileMode = function() {
+					const checkbox = document.getElementById('multifile-mode');
+					const singleInput = document.getElementById('url-single');
+					const multiInput = document.getElementById('url-multi');
+					const urlLabel = document.getElementById('url-label');
+					
+					if (!checkbox || !singleInput || !multiInput || !urlLabel) {
+						console.error('Multi-file toggle elements not found');
+						return;
+					}
+					
+					if (checkbox.checked) {
+						// Switch to multi-file mode
+						singleInput.classList.add('hidden');
+						singleInput.removeAttribute('required');
+						singleInput.removeAttribute('name');
+						
+						multiInput.classList.remove('hidden');
+						multiInput.setAttribute('required', 'true');
+						multiInput.setAttribute('name', 'urls');
+						
+						urlLabel.textContent = 'File URLs';
+					} else {
+						// Switch to single-file mode
+						multiInput.classList.add('hidden');
+						multiInput.removeAttribute('required');
+						multiInput.removeAttribute('name');
+						
+						singleInput.classList.remove('hidden');
+						singleInput.setAttribute('required', 'true');
+						singleInput.setAttribute('name', 'url');
+						
+						urlLabel.textContent = 'File URL';
+					}
 				}
 				
 			</script>

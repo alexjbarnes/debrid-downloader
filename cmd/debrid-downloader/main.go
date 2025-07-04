@@ -60,7 +60,7 @@ func run() error {
 	cancel()
 
 	// Initialize download worker
-	downloadWorker := downloader.NewWorker(db)
+	downloadWorker := downloader.NewWorker(db, cfg.BaseDownloadsPath)
 
 	// Initialize web server with download worker
 	server := web.NewServer(db, allDebridClient, cfg, downloadWorker)
