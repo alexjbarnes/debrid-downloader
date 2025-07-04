@@ -1,9 +1,6 @@
 # Multi-stage build Dockerfile using wolfi as final image
 # Build stage
-FROM golang:1.24-alpine AS builder
-
-# Install build dependencies
-RUN apk add --no-cache git ca-certificates
+FROM cgr.dev/chainguard/go:latest AS builder
 
 # Set working directory
 WORKDIR /app
