@@ -67,7 +67,6 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-
 // CurrentDownloads handles HTMX requests for current downloads
 func (h *Handlers) CurrentDownloads(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
@@ -199,25 +198,25 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 
 	// Send empty result div to clear any previous messages
 	w.Write([]byte(`<div id="result" class="mt-6"></div>`))
-	
+
 	// Send success button state as out-of-band swap
 	successButton := templates.SubmitButton("success")
 	if err := successButton.Render(r.Context(), w); err != nil {
 		h.logger.Error("Failed to render success button", "error", err)
 	}
-	
+
 	// Send out-of-band swap to reset the URL input
-	w.Write([]byte(`<input type="url" id="url" name="url" required placeholder="https://example.com/file.zip" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors" hx-post="/api/directory-suggestion" hx-trigger="keyup changed delay:500ms" hx-swap="none" hx-include="this" hx-indicator="#directory-suggestion-indicator" hx-on="htmx:afterRequest: updateDirectoryDisplay(event.detail.xhr.responseText)" hx-swap-oob="true" value="">`))
-	
+	w.Write([]byte(`<input type="url" id="url" name="url" required placeholder="https://example.com/file.zip" class="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors" hx-post="/api/directory-suggestion" hx-trigger="keyup changed delay:500ms, paste delay:500ms" hx-target="#directory-suggestion-response" hx-include="this" hx-indicator="#directory-suggestion-indicator" hx-swap-oob="true" value="">`))
+
 	// Send out-of-band swap to reset the directory fields
 	w.Write([]byte(`<input type="hidden" id="directory" name="directory" value="`))
 	w.Write([]byte(suggestedDir))
 	w.Write([]byte(`" hx-swap-oob="true">`))
-	
+
 	w.Write([]byte(`<span id="selected-directory" hx-swap-oob="true">`))
 	w.Write([]byte(suggestedDir))
 	w.Write([]byte(`</span>`))
-	
+
 	// Send out-of-band swap to update downloads list
 	w.Write([]byte(`<div id="downloads-list" class="space-y-4" hx-post="/downloads/search" hx-trigger="load, refresh" hx-include="#search-form" hx-swap="innerHTML" hx-swap-oob="true">`))
 	downloadsComponent := templates.DownloadsList(downloads)
@@ -226,7 +225,7 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Write([]byte(`</div>`))
-	
+
 	// Also send updated polling trigger
 	pollingComponent := templates.DynamicPollingTrigger("polling-trigger", "/downloads/search", "#downloads-list", activeCount)
 	if err := pollingComponent.Render(r.Context(), w); err != nil {
@@ -1103,7 +1102,7 @@ func (h *Handlers) ensureUniqueFilename(filename, directory string) string {
 func (h *Handlers) getSmartDirectorySuggestion(url, basePath string) string {
 	// Extract filename from URL
 	filename := extractFilenameFromURL(url)
-	
+
 	if filename == "" {
 		return basePath
 	}
@@ -1111,7 +1110,7 @@ func (h *Handlers) getSmartDirectorySuggestion(url, basePath string) string {
 	// Convert to lowercase for analysis
 	filename = strings.ToLower(filename)
 	url = strings.ToLower(url)
-	
+
 	// Extract domain for additional analysis
 	domain := extractDomain(url)
 
@@ -1163,7 +1162,7 @@ func (h *Handlers) getSmartDirectorySuggestion(url, basePath string) string {
 				}
 			}
 		}
-		
+
 		// Domain-specific scoring
 		if domain != "" {
 			switch {
