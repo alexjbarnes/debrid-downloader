@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -308,4 +309,510 @@ func TestDB_UpdateDirectoryMappingUsage(t *testing.T) {
 	updated := mappings[0]
 	require.Equal(t, 2, updated.UseCount)
 	require.True(t, updated.LastUsed.After(mapping.LastUsed))
+}
+
+func TestDB_SearchDownloads(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create test downloads
+	downloads := []*models.Download{
+		{
+			OriginalURL: "https://example.com/movie.mp4",
+			Filename:    "action_movie.mp4",
+			Directory:   "/downloads/movies",
+			Status:      models.StatusCompleted,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/song.mp3",
+			Filename:    "music_track.mp3",
+			Directory:   "/downloads/music",
+			Status:      models.StatusPending,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/document.pdf",
+			Filename:    "important_doc.pdf",
+			Directory:   "/downloads/docs",
+			Status:      models.StatusFailed,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+	}
+
+	for _, download := range downloads {
+		err = db.CreateDownload(download)
+		require.NoError(t, err)
+	}
+
+	// Test search by filename
+	results, err := db.SearchDownloads("movie", "", 10, 0)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, "action_movie.mp4", results[0].Filename)
+
+	// Test search by status
+	results, err = db.SearchDownloads("", "pending", 10, 0)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, models.StatusPending, results[0].Status)
+
+	// Test search by both filename and status
+	results, err = db.SearchDownloads("music", "pending", 10, 0)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.Equal(t, "music_track.mp3", results[0].Filename)
+
+	// Test search with no results
+	results, err = db.SearchDownloads("nonexistent", "", 10, 0)
+	require.NoError(t, err)
+	require.Len(t, results, 0)
+
+	// Test pagination
+	results, err = db.SearchDownloads("", "", 2, 0)
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+
+	results, err = db.SearchDownloads("", "", 2, 2)
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+}
+
+func TestDB_DeleteDownload(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create a download
+	download := &models.Download{
+		OriginalURL: "https://example.com/file.zip",
+		Filename:    "file.zip",
+		Directory:   "/downloads",
+		Status:      models.StatusCompleted,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	err = db.CreateDownload(download)
+	require.NoError(t, err)
+
+	// Delete the download
+	err = db.DeleteDownload(download.ID)
+	require.NoError(t, err)
+
+	// Verify it's deleted
+	_, err = db.GetDownload(download.ID)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "download not found")
+}
+
+func TestDB_GetDirectorySuggestionsForURL(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create directory mappings
+	mappings := []*models.DirectoryMapping{
+		{
+			FilenamePattern: ".mp4",
+			OriginalURL:     "https://example.com/movies/action.mp4",
+			Directory:       "/downloads/movies",
+			UseCount:        5,
+			LastUsed:        time.Now(),
+			CreatedAt:       time.Now(),
+		},
+		{
+			FilenamePattern: ".mp3",
+			OriginalURL:     "https://music.com/songs/track.mp3",
+			Directory:       "/downloads/music",
+			UseCount:        3,
+			LastUsed:        time.Now(),
+			CreatedAt:       time.Now(),
+		},
+	}
+
+	for _, mapping := range mappings {
+		err = db.CreateDirectoryMapping(mapping)
+		require.NoError(t, err)
+	}
+
+	// Test URL matching - this function returns all mappings ordered by use_count
+	suggestions, err := db.GetDirectorySuggestionsForURL("https://example.com/movies/thriller.mp4")
+	require.NoError(t, err)
+	require.Len(t, suggestions, 2)
+	require.Equal(t, "/downloads/movies", suggestions[0].Directory) // First because use_count is higher (5 vs 3)
+
+	// Test with different URL - still returns all mappings
+	suggestions, err = db.GetDirectorySuggestionsForURL("https://unknown.com/file.txt")
+	require.NoError(t, err)
+	require.Len(t, suggestions, 2)
+}
+
+func TestDB_CreateDownloadGroup(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	group := &models.DownloadGroup{
+		ID:                 "test-group-id",
+		CreatedAt:          time.Now(),
+		TotalDownloads:     3,
+		CompletedDownloads: 1,
+		Status:             models.GroupStatusDownloading,
+	}
+
+	err = db.CreateDownloadGroup(group)
+	require.NoError(t, err)
+}
+
+func TestDB_GetDownloadGroup(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create a download group
+	group := &models.DownloadGroup{
+		ID:                 "test-group-id",
+		CreatedAt:          time.Now(),
+		TotalDownloads:     3,
+		CompletedDownloads: 1,
+		Status:             models.GroupStatusDownloading,
+	}
+
+	err = db.CreateDownloadGroup(group)
+	require.NoError(t, err)
+
+	// Retrieve the group
+	retrieved, err := db.GetDownloadGroup(group.ID)
+	require.NoError(t, err)
+	require.Equal(t, group.ID, retrieved.ID)
+	require.Equal(t, group.TotalDownloads, retrieved.TotalDownloads)
+	require.Equal(t, group.CompletedDownloads, retrieved.CompletedDownloads)
+	require.Equal(t, group.Status, retrieved.Status)
+
+	// Test non-existent group
+	_, err = db.GetDownloadGroup("non-existent")
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "download group not found")
+}
+
+func TestDB_UpdateDownloadGroup(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create a download group
+	group := &models.DownloadGroup{
+		ID:                 "test-group-id",
+		CreatedAt:          time.Now(),
+		TotalDownloads:     3,
+		CompletedDownloads: 1,
+		Status:             models.GroupStatusDownloading,
+	}
+
+	err = db.CreateDownloadGroup(group)
+	require.NoError(t, err)
+
+	// Update the group
+	group.CompletedDownloads = 3
+	group.Status = models.GroupStatusCompleted
+
+	err = db.UpdateDownloadGroup(group)
+	require.NoError(t, err)
+
+	// Verify the update
+	retrieved, err := db.GetDownloadGroup(group.ID)
+	require.NoError(t, err)
+	require.Equal(t, 3, retrieved.CompletedDownloads)
+	require.Equal(t, models.GroupStatusCompleted, retrieved.Status)
+}
+
+func TestDB_GetDownloadsByGroupID(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	groupID := "test-group-id"
+
+	// Create downloads with the same group ID
+	downloads := []*models.Download{
+		{
+			OriginalURL: "https://example.com/file1.zip",
+			Filename:    "file1.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusCompleted,
+			GroupID:     groupID,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file2.zip",
+			Filename:    "file2.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPending,
+			GroupID:     groupID,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file3.zip",
+			Filename:    "file3.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusCompleted,
+			GroupID:     "different-group",
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+	}
+
+	for _, download := range downloads {
+		err = db.CreateDownload(download)
+		require.NoError(t, err)
+	}
+
+	// Get downloads by group ID
+	groupDownloads, err := db.GetDownloadsByGroupID(groupID)
+	require.NoError(t, err)
+	require.Len(t, groupDownloads, 2)
+
+	// Verify both downloads belong to the correct group
+	for _, download := range groupDownloads {
+		require.Equal(t, groupID, download.GroupID)
+	}
+}
+
+func TestDB_CreateExtractedFile(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create a download first
+	download := &models.Download{
+		OriginalURL: "https://example.com/archive.zip",
+		Filename:    "archive.zip",
+		Directory:   "/downloads",
+		Status:      models.StatusCompleted,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	err = db.CreateDownload(download)
+	require.NoError(t, err)
+
+	// Create extracted file
+	extractedFile := &models.ExtractedFile{
+		DownloadID: download.ID,
+		FilePath:   "/downloads/extracted/file1.txt",
+		CreatedAt:  time.Now(),
+	}
+
+	err = db.CreateExtractedFile(extractedFile)
+	require.NoError(t, err)
+	require.NotZero(t, extractedFile.ID)
+}
+
+func TestDB_GetExtractedFilesByDownloadID(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create a download first
+	download := &models.Download{
+		OriginalURL: "https://example.com/archive.zip",
+		Filename:    "archive.zip",
+		Directory:   "/downloads",
+		Status:      models.StatusCompleted,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	err = db.CreateDownload(download)
+	require.NoError(t, err)
+
+	// Create extracted files
+	extractedFiles := []*models.ExtractedFile{
+		{
+			DownloadID: download.ID,
+			FilePath:   "/downloads/extracted/file1.txt",
+			CreatedAt:  time.Now(),
+		},
+		{
+			DownloadID: download.ID,
+			FilePath:   "/downloads/extracted/file2.txt",
+			CreatedAt:  time.Now(),
+		},
+	}
+
+	for _, file := range extractedFiles {
+		err = db.CreateExtractedFile(file)
+		require.NoError(t, err)
+	}
+
+	// Get extracted files by download ID
+	files, err := db.GetExtractedFilesByDownloadID(download.ID)
+	require.NoError(t, err)
+	require.Len(t, files, 2)
+
+	// Verify file paths
+	filePaths := make([]string, len(files))
+	for i, file := range files {
+		filePaths[i] = file.FilePath
+	}
+	require.Contains(t, filePaths, "/downloads/extracted/file1.txt")
+	require.Contains(t, filePaths, "/downloads/extracted/file2.txt")
+}
+
+func TestDB_MarkExtractedFileDeleted(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create a download first
+	download := &models.Download{
+		OriginalURL: "https://example.com/archive.zip",
+		Filename:    "archive.zip",
+		Directory:   "/downloads",
+		Status:      models.StatusCompleted,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	err = db.CreateDownload(download)
+	require.NoError(t, err)
+
+	// Create extracted file
+	extractedFile := &models.ExtractedFile{
+		DownloadID: download.ID,
+		FilePath:   "/downloads/extracted/file1.txt",
+		CreatedAt:  time.Now(),
+	}
+
+	err = db.CreateExtractedFile(extractedFile)
+	require.NoError(t, err)
+
+	// Mark file as deleted
+	deletedAt := time.Now()
+	err = db.MarkExtractedFileDeleted(extractedFile.ID, deletedAt)
+	require.NoError(t, err)
+
+	// Verify file is no longer returned (filtered out by WHERE deleted_at IS NULL)
+	files, err := db.GetExtractedFilesByDownloadID(download.ID)
+	require.NoError(t, err)
+	require.Len(t, files, 0) // Deleted files are filtered out
+}
+
+func TestDB_ErrorCases(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Test GetDownload with non-existent ID
+	_, err = db.GetDownload(99999)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "download not found")
+
+	// Test UpdateDirectoryMappingUsage with non-existent ID
+	err = db.UpdateDirectoryMappingUsage(99999)
+	require.NoError(t, err) // This should not error even if no rows affected
+
+	// Test DeleteDownload with non-existent ID
+	err = db.DeleteDownload(99999)
+	require.NoError(t, err) // This should not error even if no rows affected
+}
+
+func TestDB_SearchDownloadsErrorCases(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Test with empty search term and no status filter
+	results, err := db.SearchDownloads("", "", 10, 0)
+	require.NoError(t, err)
+	require.Len(t, results, 0)
+
+	// Test with only status filter
+	results, err = db.SearchDownloads("", "completed", 10, 0)
+	require.NoError(t, err)
+	require.Len(t, results, 0)
+}
+
+func TestDB_ListDownloadsWithPagination(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create multiple downloads
+	for i := 0; i < 5; i++ {
+		download := &models.Download{
+			OriginalURL: fmt.Sprintf("https://example.com/file%d.zip", i),
+			Filename:    fmt.Sprintf("file%d.zip", i),
+			Directory:   "/downloads",
+			Status:      models.StatusCompleted,
+			CreatedAt:   time.Now().Add(time.Duration(i) * time.Minute),
+			UpdatedAt:   time.Now(),
+		}
+		err = db.CreateDownload(download)
+		require.NoError(t, err)
+	}
+
+	// Test first page
+	downloads, err := db.ListDownloads(3, 0)
+	require.NoError(t, err)
+	require.Len(t, downloads, 3)
+
+	// Test second page
+	downloads, err = db.ListDownloads(3, 3)
+	require.NoError(t, err)
+	require.Len(t, downloads, 2)
+
+	// Test beyond available records
+	downloads, err = db.ListDownloads(3, 10)
+	require.NoError(t, err)
+	require.Len(t, downloads, 0)
+}
+
+func TestDB_InvalidDatabaseOperations(t *testing.T) {
+	// Test with closed database
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	
+	// Close the database
+	err = db.Close()
+	require.NoError(t, err)
+
+	// Now try operations on closed database
+	download := &models.Download{
+		OriginalURL: "https://example.com/file.zip",
+		Filename:    "file.zip",
+		Directory:   "/downloads",
+		Status:      models.StatusPending,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	// These should all fail with database closed errors
+	err = db.CreateDownload(download)
+	require.Error(t, err)
+
+	_, err = db.GetDownload(1)
+	require.Error(t, err)
+
+	_, err = db.ListDownloads(10, 0)
+	require.Error(t, err)
+
+	err = db.UpdateDownload(download)
+	require.Error(t, err)
+
+	_, err = db.SearchDownloads("test", "", 10, 0)
+	require.Error(t, err)
+
+	err = db.DeleteDownload(1)
+	require.Error(t, err)
+
+	err = db.DeleteOldDownloads(time.Hour)
+	require.Error(t, err)
 }

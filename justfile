@@ -5,154 +5,90 @@ default:
     @just --list
 
 # Build the application
-build:
-    templ generate
-    go build -o bin/debrid-downloader ./cmd/debrid-downloader
+build: generate
+    go build -o . ./cmd/debrid-downloader
 
 # Run the application
-run:
+run: generate
     go run ./cmd/debrid-downloader
 
-# Run tests with coverage
+# Run tests
 test:
-    go test -v -race -coverprofile=coverage.out ./...
+    go test -v -race ./...
 
-# Run tests with coverage and open coverage report
-test-coverage:
-    go test -v -race -coverprofile=coverage.out ./...
-    go tool cover -html=coverage.out -o coverage.html
-    @echo "Coverage report generated: coverage.html"
-
-# Check test coverage percentage
-coverage-check:
-    go test -coverprofile=coverage.out ./...
-    go tool cover -func=coverage.out | grep total | awk '{print "Total coverage: " $3}'
-
-# Get test coverage excluding generated files (mocks, templates, etc.)
-# Default: analyze entire repo
+# Calculate coverage foe whole repo
 coverage:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    TARGET_PATH="./..."
-    echo "Running coverage analysis on: $TARGET_PATH"
-    echo "=============================================="
-    
-    # Run tests with coverage
-    go test -coverprofile=coverage.out "$TARGET_PATH" 2>/dev/null
-    
-    # Get overall coverage first
-    TOTAL_COVERAGE=$(go tool cover -func=coverage.out | grep "total:" | awk '{print $3}')
-    
-    # Show detailed coverage by file (excluding generated files)
-    echo "Coverage by file (excluding generated files):"
-    echo "============================================="
-    go tool cover -func=coverage.out | \
-        grep -v "_test.go" | \
-        grep -v "mock_" | \
-        grep -v "_templ.go" | \
-        grep -v "/mocks/" | \
-        grep -v "/templates/" | \
-        grep "\.go:" | \
-        awk '{ 
-            gsub(/^.*\//, "", $1)  # Remove path prefix
-            printf "%-50s %s\n", $1, $3
-        }' | head -20
-    
-    echo ""
-    echo "Package-level coverage:"
-    echo "======================"
-    go test -cover "$TARGET_PATH" 2>/dev/null | \
-        grep -v "coverage: 0.0%" | \
-        grep -v "/mocks" | \
-        grep -v "/templates" | \
-        grep "coverage:" | \
-        awk '{
-            # Extract package name and coverage
-            package = $2
-            gsub(/^.*\//, "", package)  # Remove path prefix
-            coverage = $(NF-2)
-            printf "%-40s %s\n", package, coverage
-        }'
-    
-    echo ""
-    printf "%-40s %s\n" "TOTAL COVERAGE:" "$TOTAL_COVERAGE"
-    
-    # Clean up
-    rm -f coverage.out
-    
-    echo ""
-    echo "Notes:"
-    echo "- Excludes: test files, mocks, templ files, generated code"
-    echo "- Use 'just coverage-dir' to analyze current directory only"
+    @just coverage-dir .
 
-# Get test coverage for current directory only (where just was invoked from)
-coverage-dir:
+# Calculate test coverage for either the current directory or the passed in directory
+coverage-dir *d: generate
     #!/usr/bin/env bash
     set -euo pipefail
     
-    # Use just's built-in invocation_directory to get where just was called from
-    INVOCATION_DIR="{{invocation_directory()}}"
-    JUSTFILE_DIR="{{justfile_directory()}}"
+    # Use the provided directory from Just parameter
+    TARGET_DIR="{{d}}"
     
-    if [[ "$INVOCATION_DIR" == "$JUSTFILE_DIR" ]]; then
-        TARGET_PATH="./..."
-    else
-        # Calculate relative path from justfile dir to invocation dir
-        REL_PATH="${INVOCATION_DIR#$JUSTFILE_DIR/}"
-        TARGET_PATH="./$REL_PATH"
+    # Default to current directory if empty
+    if [ -z "$TARGET_DIR" ]; then
+        TARGET_DIR="."
     fi
     
-    echo "Running coverage analysis on: $TARGET_PATH"
-    echo "Invoked from: {{invocation_directory()}}"
-    echo "=============================================="
+    # Ensure the directory exists
+    if [ ! -d "$TARGET_DIR" ]; then
+        echo "Error: Directory '$TARGET_DIR' does not exist"
+        exit 1
+    fi
     
-    # Run tests with coverage
-    go test -coverprofile=coverage.out "$TARGET_PATH" 2>/dev/null
+    # Run tests with coverage - capture both per-package and profile output
+    TEST_OUTPUT=$(go test -short -cover -coverprofile=coverage.out "./$TARGET_DIR/..." 2>&1)
     
-    # Get overall coverage first
-    TOTAL_COVERAGE=$(go tool cover -func=coverage.out | grep "total:" | awk '{print $3}')
+    if [ ! -f coverage.out ]; then
+        echo "No coverage data generated"
+        echo "$TEST_OUTPUT"
+        exit 1
+    fi
     
-    # Show detailed coverage by file (excluding generated files)
-    echo "Coverage by file (excluding generated files):"
-    echo "============================================="
-    go tool cover -func=coverage.out | \
-        grep -v "_test.go" | \
-        grep -v "mock_" | \
-        grep -v "_templ.go" | \
-        grep -v "/mocks/" | \
-        grep -v "/templates/" | \
-        grep "\.go:" | \
-        awk '{ 
-            gsub(/^.*\//, "", $1)  # Remove path prefix
-            printf "%-50s %s\n", $1, $3
-        }' | head -20
+    echo "Package Coverage for $TARGET_DIR (excluding mocks and generated files):"
+    echo "======================================================="
     
-    echo ""
-    echo "Package-level coverage:"
-    echo "======================"
-    go test -cover "$TARGET_PATH" 2>/dev/null | \
-        grep -v "coverage: 0.0%" | \
-        grep -v "/mocks" | \
-        grep -v "/templates" | \
+    # Parse per-package coverage from the captured test output
+    echo "$TEST_OUTPUT" | \
+        grep -E "(ok|FAIL)" | \
+        grep -v "mocks" | \
+        grep -v "templates" | \
         grep "coverage:" | \
+        sort | \
         awk '{
-            # Extract package name and coverage
             package = $2
-            gsub(/^.*\//, "", package)  # Remove path prefix
-            coverage = $(NF-2)
+            gsub(/^debrid-downloader\//, "", package)  # Remove project prefix only
+            # Handle special case for "coverage: [no statements]"
+            if ($0 ~ /\[no statements\]/) {
+                coverage = "[no statements]"
+            } else {
+                coverage = $(NF-2)
+            }
             printf "%-40s %s\n", package, coverage
         }'
     
     echo ""
-    printf "%-40s %s\n" "TOTAL COVERAGE:" "$TOTAL_COVERAGE"
+    echo "Overall Coverage (excluding mocks and generated files):"
+    echo "======================================================="
+    
+    # Calculate total coverage excluding mocks and generated files
+    grep -v "_templ.go" coverage.out | grep -v "/mocks/" | grep -v "/templates/" > coverage_filtered.out
+    TOTAL_COV=$(go tool cover -func=coverage_filtered.out | grep "total:" | awk '{print $3}')
+    
+    if [ "$TARGET_DIR" = "." ]; then
+        printf "%-40s %s\n" "TOTAL REPOSITORY:" "$TOTAL_COV"
+    else
+        printf "%-40s %s\n" "TOTAL:" "$TOTAL_COV"
+    fi
     
     # Clean up
-    rm -f coverage.out
-    
-    echo ""
-    echo "Notes:"
-    echo "- Excludes: test files, mocks, templ files, generated code"
-    echo "- Use 'just coverage-dir' to analyze only the directory you're in"
+    rm -f coverage.out coverage_filtered.out
+
+# generate all files
+generate: templ mocks
 
 # Format code
 fmt:
@@ -162,29 +98,23 @@ fmt:
 lint:
     golangci-lint run
     staticcheck ./...
-
-# Run go vet
-vet:
     go vet ./...
 
 # Generate mocks
 mocks:
     go generate ./...
 
-# Run all quality checks
-check: templ-generate fmt vet lint test
-
 # Clean build artifacts
 clean:
-    rm -rf bin/ coverage.out coverage.html
+    rm -rf debrid-downloader coverage.out coverage.html
 
 # Download dependencies
-deps:
+mod:
     go mod download
     go mod tidy
 
 # Generate templ templates
-templ-generate:
+templ:
     templ generate
 
 # Install development tools
