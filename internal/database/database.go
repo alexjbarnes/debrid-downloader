@@ -223,7 +223,7 @@ func (db *DB) ListDownloads(limit, offset int) ([]*models.Download, error) {
 		   started_at, completed_at, paused_at, total_paused_time,
 		   group_id, is_archive, extracted_files
 	FROM downloads 
-	ORDER BY created_at DESC 
+	ORDER BY created_at DESC, id ASC 
 	LIMIT ? OFFSET ?
 	`
 
@@ -312,7 +312,7 @@ func (db *DB) SearchDownloads(searchTerm, statusFilter string, limit, offset int
 		args = append(args, statusFilter)
 	}
 
-	query += ` ORDER BY created_at DESC LIMIT ? OFFSET ?`
+	query += ` ORDER BY created_at DESC, id ASC LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 
 	rows, err := db.conn.Query(query, args...)
@@ -579,7 +579,7 @@ func (db *DB) GetDownloadsByGroupID(groupID string) ([]*models.Download, error) 
 		   group_id, is_archive, extracted_files
 	FROM downloads 
 	WHERE group_id = ?
-	ORDER BY created_at ASC
+	ORDER BY created_at ASC, id ASC
 	`
 
 	rows, err := db.conn.Query(query, groupID)
@@ -639,7 +639,7 @@ func (db *DB) GetExtractedFilesByDownloadID(downloadID int64) ([]*models.Extract
 	SELECT id, download_id, file_path, created_at, deleted_at
 	FROM extracted_files 
 	WHERE download_id = ? AND deleted_at IS NULL
-	ORDER BY created_at ASC
+	ORDER BY created_at ASC, id ASC
 	`
 
 	rows, err := db.conn.Query(query, downloadID)
