@@ -223,7 +223,14 @@ func (db *DB) ListDownloads(limit, offset int) ([]*models.Download, error) {
 		   started_at, completed_at, paused_at, total_paused_time,
 		   group_id, is_archive, extracted_files
 	FROM downloads 
-	ORDER BY created_at DESC, id ASC 
+	ORDER BY 
+		CASE 
+			WHEN status = 'downloading' THEN 1
+			WHEN status = 'pending' THEN 2
+			WHEN status = 'paused' THEN 3
+			ELSE 4
+		END,
+		created_at DESC, id ASC 
 	LIMIT ? OFFSET ?
 	`
 
@@ -406,11 +413,25 @@ func (db *DB) SearchDownloads(searchTerm string, statusFilters []string, sortOrd
 		query += ` AND status IN (` + strings.Join(placeholders, ",") + `)`
 	}
 
-	// Add sort order
+	// Add sort order with status priority (downloading items always first)
 	if sortOrder == "asc" {
-		query += ` ORDER BY created_at ASC, id DESC`
+		query += ` ORDER BY 
+			CASE 
+				WHEN status = 'downloading' THEN 1
+				WHEN status = 'pending' THEN 2  
+				WHEN status = 'paused' THEN 3
+				ELSE 4
+			END,
+			created_at ASC, id DESC`
 	} else {
-		query += ` ORDER BY created_at DESC, id ASC`
+		query += ` ORDER BY 
+			CASE 
+				WHEN status = 'downloading' THEN 1
+				WHEN status = 'pending' THEN 2
+				WHEN status = 'paused' THEN 3  
+				ELSE 4
+			END,
+			created_at DESC, id ASC`
 	}
 	
 	query += ` LIMIT ? OFFSET ?`
@@ -680,7 +701,14 @@ func (db *DB) GetDownloadsByGroupID(groupID string) ([]*models.Download, error) 
 		   group_id, is_archive, extracted_files
 	FROM downloads 
 	WHERE group_id = ?
-	ORDER BY created_at ASC, id ASC
+	ORDER BY 
+		CASE 
+			WHEN status = 'downloading' THEN 1
+			WHEN status = 'pending' THEN 2
+			WHEN status = 'paused' THEN 3
+			ELSE 4
+		END,
+		created_at ASC, id ASC
 	`
 
 	rows, err := db.conn.Query(query, groupID)
