@@ -328,6 +328,16 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("Failed to write response", "error", err)
 	}
 
+	// Send out-of-band swap to reset the multifile-mode checkbox
+	if _, err := w.Write([]byte(`<input type="checkbox" id="multifile-mode" name="multifile-mode" onchange="toggleMultiFileMode()" class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700" hx-swap-oob="true">`)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
+
+	// Send out-of-band swap to reset the URL label to single-file mode
+	if _, err := w.Write([]byte(`<span id="url-label" hx-swap-oob="true">File URL</span>`)); err != nil {
+		h.logger.Error("Failed to write response", "error", err)
+	}
+
 	// Send out-of-band swap to reset the directory fields
 	if _, err := w.Write([]byte(`<input type="hidden" id="directory" name="directory" value="`)); err != nil {
 		h.logger.Error("Failed to write response", "error", err)
