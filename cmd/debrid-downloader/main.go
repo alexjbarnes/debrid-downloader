@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"syscall"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	"debrid-downloader/internal/database"
 	"debrid-downloader/internal/downloader"
 	"debrid-downloader/internal/web"
+	"debrid-downloader/pkg/models"
 )
 
 func main() {
@@ -75,6 +77,11 @@ func runServer(server *web.Server, downloadWorker *downloader.Worker, db *databa
 
 	// Start download worker in goroutine
 	go downloadWorker.Start(ctx)
+
+	// Reset orphaned downloads from previous session
+	if err := resetOrphanedDownloads(db); err != nil {
+		slog.Error("Failed to reset orphaned downloads", "error", err)
+	}
 
 	// Queue any pending downloads from previous session
 	if err := queuePendingDownloads(db, downloadWorker); err != nil {
@@ -172,6 +179,59 @@ func cleanupOldDownloads(db *database.DB) {
 	}
 
 	slog.Info("History cleanup completed")
+}
+
+// resetOrphanedDownloads finds downloads stuck in downloading state and resets them to pending
+func resetOrphanedDownloads(db *database.DB) error {
+	// Get downloads stuck in downloading state (orphaned by server restart)
+	orphanedDownloads, err := db.GetOrphanedDownloads()
+	if err != nil {
+		return fmt.Errorf("failed to get orphaned downloads: %w", err)
+	}
+
+	for _, download := range orphanedDownloads {
+		// Clean up temporary file if it exists
+		tempFilename := fmt.Sprintf("%s.%d.tmp", download.Filename, download.ID)
+		tempPath := filepath.Join(download.Directory, tempFilename)
+		if _, err := os.Stat(tempPath); err == nil {
+			if removeErr := os.Remove(tempPath); removeErr != nil {
+				slog.Warn("Failed to clean up orphaned temporary file", 
+					"temp_path", tempPath, 
+					"download_id", download.ID, 
+					"error", removeErr)
+			} else {
+				slog.Info("Cleaned up orphaned temporary file", 
+					"temp_path", tempPath, 
+					"download_id", download.ID)
+			}
+		}
+
+		// Reset download to pending state
+		download.Status = models.StatusPending
+		download.Progress = 0.0
+		download.DownloadedBytes = 0
+		download.DownloadSpeed = 0.0
+		download.ErrorMessage = ""
+		download.UpdatedAt = time.Now()
+		download.StartedAt = nil
+
+		if err := db.UpdateDownload(download); err != nil {
+			slog.Error("Failed to reset orphaned download", 
+				"download_id", download.ID, 
+				"error", err)
+			continue
+		}
+
+		slog.Info("Reset orphaned download to pending state", 
+			"download_id", download.ID, 
+			"filename", download.Filename)
+	}
+
+	if len(orphanedDownloads) > 0 {
+		slog.Info("Reset orphaned downloads from previous session", "count", len(orphanedDownloads))
+	}
+
+	return nil
 }
 
 // queuePendingDownloads looks for any pending downloads from previous session and queues them
