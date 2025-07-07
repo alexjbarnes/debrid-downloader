@@ -128,6 +128,21 @@ pending → downloading → completed/failed/paused
 - `failed`: Download failed after all retries
 - `paused`: Download paused by user
 
+### Server Startup Recovery
+
+The downloader includes robust recovery mechanisms for server restarts:
+
+**Orphaned Download Recovery:**
+- Downloads stuck in "downloading" state are automatically detected
+- Temporary files are cleaned up on startup
+- Downloads are reset to "pending" state for reprocessing
+- Handled by external startup routine (not within worker)
+
+**Pending Download Resumption:**
+- Pending downloads from previous session are automatically queued
+- Maintains download order based on creation time (FIFO)
+- Ensures no downloads are lost during server restarts
+
 ### Progress Tracking
 
 Real-time progress tracking with multiple metrics:
@@ -444,6 +459,52 @@ func downloadHandler(w http.ResponseWriter, r *http.Request) {
         "message": "Download queued",
         "id":      download.ID,
     })
+}
+```
+
+### Startup Recovery Integration
+
+```go
+// In main application startup
+func startupRecovery(db *database.DB, worker *downloader.Worker) {
+    // Reset orphaned downloads
+    orphaned, err := db.GetOrphanedDownloads()
+    if err != nil {
+        log.Error("Failed to get orphaned downloads", err)
+        return
+    }
+    
+    for _, download := range orphaned {
+        // Clean up temporary files
+        tmpFile := filepath.Join(download.Directory, download.Filename+".tmp")
+        if err := os.Remove(tmpFile); err != nil && !os.IsNotExist(err) {
+            log.Warn("Failed to remove orphaned temp file", "file", tmpFile, "error", err)
+        }
+        
+        // Reset to pending state
+        download.Status = models.StatusPending
+        download.Progress = 0.0
+        download.DownloadedBytes = 0
+        download.DownloadSpeed = 0.0
+        download.StartedAt = nil
+        download.UpdatedAt = time.Now()
+        
+        if err := db.UpdateDownload(download); err != nil {
+            log.Error("Failed to reset orphaned download", "id", download.ID, "error", err)
+        }
+    }
+    
+    // Queue pending downloads
+    pending, err := db.GetPendingDownloadsOldestFirst()
+    if err != nil {
+        log.Error("Failed to get pending downloads", err)
+        return
+    }
+    
+    for _, download := range pending {
+        worker.QueueDownload(download.ID)
+        log.Info("Queued pending download", "id", download.ID, "filename", download.Filename)
+    }
 }
 ```
 

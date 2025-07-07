@@ -816,3 +816,438 @@ func TestDB_InvalidDatabaseOperations(t *testing.T) {
 	err = db.DeleteOldDownloads(time.Hour)
 	require.Error(t, err)
 }
+
+// Tests for new methods added in recent commits
+
+func TestDB_GetDownloadStats(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Test empty database
+	stats, err := db.GetDownloadStats()
+	require.NoError(t, err)
+	require.NotNil(t, stats)
+	require.Equal(t, 0, stats["pending"])
+	require.Equal(t, 0, stats["downloading"])
+	require.Equal(t, 0, stats["completed"])
+	require.Equal(t, 0, stats["failed"])
+	require.Equal(t, 0, stats["paused"])
+
+	// Create downloads with different statuses
+	downloads := []*models.Download{
+		{
+			OriginalURL: "https://example.com/file1.zip",
+			Filename:    "file1.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPending,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file2.zip",
+			Filename:    "file2.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPending,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file3.zip",
+			Filename:    "file3.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusDownloading,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file4.zip",
+			Filename:    "file4.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusCompleted,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file5.zip",
+			Filename:    "file5.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusFailed,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file6.zip",
+			Filename:    "file6.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPaused,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+	}
+
+	for _, download := range downloads {
+		err = db.CreateDownload(download)
+		require.NoError(t, err)
+	}
+
+	// Test statistics calculation
+	stats, err = db.GetDownloadStats()
+	require.NoError(t, err)
+	require.Equal(t, 2, stats["pending"])
+	require.Equal(t, 1, stats["downloading"])
+	require.Equal(t, 1, stats["completed"])
+	require.Equal(t, 1, stats["failed"])
+	require.Equal(t, 1, stats["paused"])
+}
+
+func TestDB_GetOrphanedDownloads(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Test empty database
+	orphaned, err := db.GetOrphanedDownloads()
+	require.NoError(t, err)
+	require.Len(t, orphaned, 0)
+
+	// Create downloads with different statuses
+	downloads := []*models.Download{
+		{
+			OriginalURL: "https://example.com/file1.zip",
+			Filename:    "file1.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusDownloading,
+			CreatedAt:   time.Now().Add(-2 * time.Hour),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file2.zip",
+			Filename:    "file2.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusDownloading,
+			CreatedAt:   time.Now().Add(-1 * time.Hour),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file3.zip",
+			Filename:    "file3.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPending,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file4.zip",
+			Filename:    "file4.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusCompleted,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+	}
+
+	for _, download := range downloads {
+		err = db.CreateDownload(download)
+		require.NoError(t, err)
+	}
+
+	// Test orphaned downloads retrieval
+	orphaned, err = db.GetOrphanedDownloads()
+	require.NoError(t, err)
+	require.Len(t, orphaned, 2)
+
+	// Verify only downloading status downloads are returned
+	for _, download := range orphaned {
+		require.Equal(t, models.StatusDownloading, download.Status)
+	}
+
+	// Verify ordering by creation time (oldest first)
+	require.Equal(t, "file1.zip", orphaned[0].Filename) // Older download should be first
+	require.Equal(t, "file2.zip", orphaned[1].Filename)
+}
+
+func TestDB_GetPendingDownloadsOldestFirst(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Test empty database
+	pending, err := db.GetPendingDownloadsOldestFirst()
+	require.NoError(t, err)
+	require.Len(t, pending, 0)
+
+	// Create downloads with different statuses and creation times
+	downloads := []*models.Download{
+		{
+			OriginalURL: "https://example.com/file1.zip",
+			Filename:    "file1.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPending,
+			CreatedAt:   time.Now().Add(-3 * time.Hour),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file2.zip",
+			Filename:    "file2.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusDownloading,
+			CreatedAt:   time.Now().Add(-2 * time.Hour),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file3.zip",
+			Filename:    "file3.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPending,
+			CreatedAt:   time.Now().Add(-1 * time.Hour),
+			UpdatedAt:   time.Now(),
+		},
+		{
+			OriginalURL: "https://example.com/file4.zip",
+			Filename:    "file4.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusCompleted,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		},
+	}
+
+	for _, download := range downloads {
+		err = db.CreateDownload(download)
+		require.NoError(t, err)
+	}
+
+	// Test pending downloads retrieval
+	pending, err = db.GetPendingDownloadsOldestFirst()
+	require.NoError(t, err)
+	require.Len(t, pending, 2)
+
+	// Verify only pending status downloads are returned
+	for _, download := range pending {
+		require.Equal(t, models.StatusPending, download.Status)
+	}
+
+	// Verify ordering by creation time (oldest first)
+	require.Equal(t, "file1.zip", pending[0].Filename) // Oldest download should be first
+	require.Equal(t, "file3.zip", pending[1].Filename)
+}
+
+func TestDB_StatusBasedSortingInListDownloads(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create downloads with different statuses (creation time should not affect priority sorting)
+	baseTime := time.Now()
+	downloads := []*models.Download{
+		{
+			OriginalURL: "https://example.com/completed.zip",
+			Filename:    "completed.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusCompleted,
+			CreatedAt:   baseTime.Add(-4 * time.Hour), // Oldest, but should be last
+			UpdatedAt:   baseTime,
+		},
+		{
+			OriginalURL: "https://example.com/downloading.zip",
+			Filename:    "downloading.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusDownloading,
+			CreatedAt:   baseTime.Add(-3 * time.Hour), // Should be first
+			UpdatedAt:   baseTime,
+		},
+		{
+			OriginalURL: "https://example.com/failed.zip",
+			Filename:    "failed.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusFailed,
+			CreatedAt:   baseTime.Add(-2 * time.Hour), // Should be last
+			UpdatedAt:   baseTime,
+		},
+		{
+			OriginalURL: "https://example.com/pending.zip",
+			Filename:    "pending.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPending,
+			CreatedAt:   baseTime.Add(-1 * time.Hour), // Should be second
+			UpdatedAt:   baseTime,
+		},
+		{
+			OriginalURL: "https://example.com/paused.zip",
+			Filename:    "paused.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPaused,
+			CreatedAt:   baseTime, // Newest, but should be third
+			UpdatedAt:   baseTime,
+		},
+	}
+
+	for _, download := range downloads {
+		err = db.CreateDownload(download)
+		require.NoError(t, err)
+	}
+
+	// Test status-based priority sorting
+	results, err := db.ListDownloads(10, 0)
+	require.NoError(t, err)
+	require.Len(t, results, 5)
+
+	// Verify status priority order: downloading(1) → pending(2) → paused(3) → others(4)
+	require.Equal(t, models.StatusDownloading, results[0].Status)
+	require.Equal(t, "downloading.zip", results[0].Filename)
+
+	require.Equal(t, models.StatusPending, results[1].Status)
+	require.Equal(t, "pending.zip", results[1].Filename)
+
+	require.Equal(t, models.StatusPaused, results[2].Status)
+	require.Equal(t, "paused.zip", results[2].Filename)
+
+	// Failed and completed should be last (in creation time order within same priority)
+	require.True(t, results[3].Status == models.StatusCompleted || results[3].Status == models.StatusFailed)
+	require.True(t, results[4].Status == models.StatusCompleted || results[4].Status == models.StatusFailed)
+}
+
+func TestDB_StatusBasedSortingInSearchDownloads(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	// Create downloads with different statuses
+	baseTime := time.Now()
+	downloads := []*models.Download{
+		{
+			OriginalURL: "https://example.com/test_completed.zip",
+			Filename:    "test_completed.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusCompleted,
+			CreatedAt:   baseTime.Add(-3 * time.Hour),
+			UpdatedAt:   baseTime,
+		},
+		{
+			OriginalURL: "https://example.com/test_downloading.zip",
+			Filename:    "test_downloading.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusDownloading,
+			CreatedAt:   baseTime.Add(-2 * time.Hour),
+			UpdatedAt:   baseTime,
+		},
+		{
+			OriginalURL: "https://example.com/test_pending.zip",
+			Filename:    "test_pending.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPending,
+			CreatedAt:   baseTime.Add(-1 * time.Hour),
+			UpdatedAt:   baseTime,
+		},
+		{
+			OriginalURL: "https://example.com/test_paused.zip",
+			Filename:    "test_paused.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPaused,
+			CreatedAt:   baseTime,
+			UpdatedAt:   baseTime,
+		},
+	}
+
+	for _, download := range downloads {
+		err = db.CreateDownload(download)
+		require.NoError(t, err)
+	}
+
+	// Test status-based priority sorting with search (desc order)
+	results, err := db.SearchDownloads("test", []string{"pending", "downloading", "completed", "paused"}, "desc", 10, 0)
+	require.NoError(t, err)
+	require.Len(t, results, 4)
+
+	// Verify status priority order is maintained
+	require.Equal(t, models.StatusDownloading, results[0].Status)
+	require.Equal(t, models.StatusPending, results[1].Status)
+	require.Equal(t, models.StatusPaused, results[2].Status)
+	require.Equal(t, models.StatusCompleted, results[3].Status)
+
+	// Test with asc order
+	results, err = db.SearchDownloads("test", []string{"pending", "downloading", "completed", "paused"}, "asc", 10, 0)
+	require.NoError(t, err)
+	require.Len(t, results, 4)
+
+	// Status priority should still be maintained even with asc time order
+	require.Equal(t, models.StatusDownloading, results[0].Status)
+	require.Equal(t, models.StatusPending, results[1].Status)
+	require.Equal(t, models.StatusPaused, results[2].Status)
+	require.Equal(t, models.StatusCompleted, results[3].Status)
+}
+
+func TestDB_StatusBasedSortingInGetDownloadsByGroupID(t *testing.T) {
+	db, err := New(":memory:")
+	require.NoError(t, err)
+	defer db.Close()
+
+	groupID := "test-group"
+	baseTime := time.Now()
+
+	// Create downloads with different statuses in the same group
+	downloads := []*models.Download{
+		{
+			OriginalURL: "https://example.com/group_completed.zip",
+			Filename:    "group_completed.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusCompleted,
+			GroupID:     groupID,
+			CreatedAt:   baseTime.Add(-3 * time.Hour),
+			UpdatedAt:   baseTime,
+		},
+		{
+			OriginalURL: "https://example.com/group_downloading.zip",
+			Filename:    "group_downloading.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusDownloading,
+			GroupID:     groupID,
+			CreatedAt:   baseTime.Add(-2 * time.Hour),
+			UpdatedAt:   baseTime,
+		},
+		{
+			OriginalURL: "https://example.com/group_pending.zip",
+			Filename:    "group_pending.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusPending,
+			GroupID:     groupID,
+			CreatedAt:   baseTime.Add(-1 * time.Hour),
+			UpdatedAt:   baseTime,
+		},
+		{
+			OriginalURL: "https://example.com/different_group.zip",
+			Filename:    "different_group.zip",
+			Directory:   "/downloads",
+			Status:      models.StatusDownloading,
+			GroupID:     "different-group",
+			CreatedAt:   baseTime,
+			UpdatedAt:   baseTime,
+		},
+	}
+
+	for _, download := range downloads {
+		err = db.CreateDownload(download)
+		require.NoError(t, err)
+	}
+
+	// Test status-based priority sorting within group
+	results, err := db.GetDownloadsByGroupID(groupID)
+	require.NoError(t, err)
+	require.Len(t, results, 3)
+
+	// Verify status priority order is maintained within the group
+	require.Equal(t, models.StatusDownloading, results[0].Status)
+	require.Equal(t, "group_downloading.zip", results[0].Filename)
+
+	require.Equal(t, models.StatusPending, results[1].Status)
+	require.Equal(t, "group_pending.zip", results[1].Filename)
+
+	require.Equal(t, models.StatusCompleted, results[2].Status)
+	require.Equal(t, "group_completed.zip", results[2].Filename)
+
+	// Verify all results belong to the correct group
+	for _, download := range results {
+		require.Equal(t, groupID, download.GroupID)
+	}
+}

@@ -175,25 +175,31 @@ func (db *DB) ListDownloads(limit, offset int) ([]*models.Download, error)
 - `limit`: Maximum number of records to return
 - `offset`: Number of records to skip
 
-**Returns:** Downloads ordered by `created_at DESC, id ASC`
+**Returns:** Downloads with status-based priority sorting:
+- Active downloads (downloading, pending, paused) appear first
+- Then ordered by `created_at DESC, id ASC` within each status group
 
 #### SearchDownloads
 Advanced search with fuzzy matching:
 
 ```go
-func (db *DB) SearchDownloads(searchTerm, statusFilter string, limit, offset int) ([]*models.Download, error)
+func (db *DB) SearchDownloads(searchTerm string, statusFilters []string, sortOrder string, limit, offset int) ([]*models.Download, error)
 ```
 
 **Features:**
 - Fuzzy matching across filename, original_url, and directory
 - Multiple search patterns for typo tolerance
-- Status filtering
+- Multiple status filtering support
+- Custom sort order (asc/desc)
+- Status-based priority sorting
 - Pagination support
 
 **Search Patterns:**
 - Exact word matching
 - Partial word matching (for words ≥3 chars)
 - Character substitution fuzzy matching (for words ≥4 chars)
+
+**Sort Order:** Always prioritizes active downloads (downloading → pending → paused → others), then applies time-based sorting within each status group
 
 #### DeleteDownload
 Removes a single download record:
@@ -213,6 +219,36 @@ func (db *DB) DeleteOldDownloads(olderThan time.Duration) error
 - Only deletes completed or failed downloads
 - Automatically cleans up temporary files
 - Logs deletion count
+
+#### GetDownloadStats
+Retrieves download statistics by status:
+
+```go
+func (db *DB) GetDownloadStats() (map[string]int, error)
+```
+
+**Returns:** Map of status strings to counts (e.g., "pending": 5, "downloading": 2)
+**Use Case:** Real-time dashboard statistics and monitoring
+
+#### GetOrphanedDownloads
+Retrieves downloads stuck in downloading state after server restart:
+
+```go
+func (db *DB) GetOrphanedDownloads() ([]*models.Download, error)
+```
+
+**Returns:** Downloads with status "downloading" ordered by creation time
+**Use Case:** Server startup recovery to reset orphaned downloads
+
+#### GetPendingDownloadsOldestFirst
+Retrieves pending downloads ordered by creation time (oldest first):
+
+```go
+func (db *DB) GetPendingDownloadsOldestFirst() ([]*models.Download, error)
+```
+
+**Returns:** Pending downloads in chronological order
+**Use Case:** Server startup to resume download queue processing
 
 ### Directory Mapping Operations
 
@@ -278,7 +314,7 @@ Retrieves all downloads in a group:
 func (db *DB) GetDownloadsByGroupID(groupID string) ([]*models.Download, error)
 ```
 
-**Returns:** Downloads ordered by `created_at ASC, id ASC`
+**Returns:** Downloads with status-based priority sorting (downloading → pending → paused → others), then ordered by `created_at ASC, id ASC` within each status group
 
 ### Extracted File Operations
 
@@ -506,6 +542,42 @@ extractedFile := &models.ExtractedFile{
 err = db.CreateExtractedFile(extractedFile)
 if err != nil {
     log.Fatal(err)
+}
+```
+
+### Statistics and Monitoring
+```go
+// Get download statistics
+stats, err := db.GetDownloadStats()
+if err != nil {
+    log.Fatal(err)
+}
+
+fmt.Printf("Pending: %d, Downloading: %d, Completed: %d\n", 
+    stats["pending"], stats["downloading"], stats["completed"])
+
+// Handle server restart recovery
+orphaned, err := db.GetOrphanedDownloads()
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, download := range orphaned {
+    // Reset to pending state
+    download.Status = models.StatusPending
+    download.Progress = 0.0
+    err = db.UpdateDownload(download)
+}
+
+// Queue pending downloads on startup
+pending, err := db.GetPendingDownloadsOldestFirst()
+if err != nil {
+    log.Fatal(err)
+}
+
+for _, download := range pending {
+    // Queue for processing (handled by worker)
+    fmt.Printf("Queuing download: %s\n", download.Filename)
 }
 ```
 

@@ -107,6 +107,7 @@ if err := server.Shutdown(ctx); err != nil {
 | `GET/POST` | `/api/directory-suggestion` | `handlers.GetDirectorySuggestion` | Directory suggestions |
 | `GET` | `/api/folders` | `handlers.BrowseFolders` | Browse filesystem folders |
 | `POST` | `/api/folders` | `handlers.CreateFolder` | Create new folder |
+| `GET` | `/api/stats` | `handlers.GetDownloadStats` | Real-time download statistics |
 | `POST` | `/api/test/failed-download` | `handlers.CreateTestFailedDownload` | Testing endpoint |
 
 ## Handler Implementation
@@ -150,7 +151,19 @@ func (h *Handlers) GetDirectorySuggestion(w http.ResponseWriter, r *http.Request
 1. Extract filename/URL from request
 2. Fuzzy match against stored patterns
 3. Score based on filename similarity and usage count
-4. Return top suggestion with alternatives
+4. Return best match as single string value
+
+#### Download Statistics
+
+```go
+func (h *Handlers) GetDownloadStats(w http.ResponseWriter, r *http.Request)
+```
+
+**Features:**
+- Real-time download statistics by status
+- Adaptive polling based on active downloads
+- Out-of-band HTMX updates for modal content
+- Integrated with dynamic polling system
 
 #### Folder Management
 
@@ -186,10 +199,12 @@ The application uses HTMX for seamless user interactions:
 
 ### Real-time Features
 
-1. **Download Progress:** Auto-updates every 2 seconds when active downloads exist
+1. **Download Progress:** Auto-updates every 500ms when active downloads exist
 2. **Form Validation:** Real-time directory suggestions as user types
 3. **Status Updates:** Instant feedback on download operations
 4. **Dynamic Polling:** Polling interval adjusts based on activity
+5. **Statistics Modal:** Live download counts with real-time updates
+6. **Status-Based Sorting:** Active downloads automatically appear at top
 
 ### Out-of-Band Swaps
 
@@ -199,7 +214,38 @@ The server uses HTMX out-of-band swaps for complex UI updates:
 // Reset form fields after successful submission
 w.Write([]byte(`<input type="url" ... hx-swap-oob="true" value="">`))
 w.Write([]byte(`<div id="downloads-list" ... hx-swap-oob="true">`))
+
+// Update statistics modal content
+statsContent := templates.DownloadStatsContent(stats)
+statsContent.Render(r.Context(), w)
+
+// Reset multi-file mode checkbox
+w.Write([]byte(`<input type="checkbox" id="multifile-mode" hx-swap-oob="true">`))
 ```
+
+### Advanced UI Features
+
+#### Collapsible Download Cards
+Downloads are displayed in collapsible cards that:
+- Auto-expand for active downloads (downloading status)
+- Show essential info in collapsed state (status + filename)
+- Expand on click to reveal full details and actions
+- Maintain state across page updates
+- Use smooth CSS transitions for better UX
+
+#### Statistics Modal
+Real-time statistics modal featuring:
+- Live download counts by status with colored cards
+- Auto-refresh when downloads are active (500ms polling)
+- Keyboard shortcuts (Escape to close)
+- Click-outside-to-close functionality
+- Status indicator for active downloads
+
+#### Status-Based Sorting
+Downloads are sorted with priority:
+- Active downloads (downloading, paused) appear first
+- Maintains chronological order within status groups
+- Provides better user experience for monitoring active downloads
 
 ## Template System
 
@@ -234,9 +280,16 @@ templ Home(downloads []*models.Download, suggestedDir string, recentDirs []strin
 
 **Core Templates:**
 - `base.templ`: Base HTML structure with theme system
-- `home.templ`: Main download interface
+- `home.templ`: Main download interface with collapsible cards
+- `partials.templ`: Reusable components and UI elements
 - `settings.templ`: Settings page
-- `partials.templ`: Reusable components
+
+**New UI Components:**
+- `DownloadStatsModal`: Statistics modal with real-time updates
+- `DownloadStatsContent`: Modal content for out-of-band updates
+- `StatsButton`: Header button with download counts
+- `CollapsibleDownloadCard`: Expandable download item cards
+- `DynamicPollingTrigger`: Adaptive polling based on activity
 
 **Key Components:**
 - `DownloadItem`: Individual download display
