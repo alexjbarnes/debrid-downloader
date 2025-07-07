@@ -204,10 +204,19 @@ templ Home(downloads []*models.Download, suggestedDir string) {
 			<div id="result" class="mt-6"></div>
 		</div>
 
+		<!-- Stats Modal and Button -->
+		@DownloadStatsWithPolling(map[string]int{}, 0)
+		
+		<!-- Hidden stats polling trigger that gets updated via out-of-band swaps -->
+		<div id="stats-polling-trigger" style="display: none;"></div>
+
 		<!-- Downloads History Section -->
 		<div class="bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6">
 			<div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4 mb-6">
-				<h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Download History</h2>
+				<div class="flex items-center justify-between w-full sm:w-auto">
+					<h2 class="text-2xl font-semibold text-gray-900 dark:text-white">Download History</h2>
+					@StatsButton(map[string]int{})
+				</div>
 				
 				<!-- Search and Filter -->
 				<div class="flex flex-col sm:flex-row gap-4">

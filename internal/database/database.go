@@ -778,3 +778,31 @@ func (db *DB) MarkExtractedFileDeleted(id int64, deletedAt time.Time) error {
 
 	return nil
 }
+
+// GetDownloadStats retrieves download statistics by status
+func (db *DB) GetDownloadStats() (map[string]int, error) {
+	query := `
+	SELECT status, COUNT(*) as count
+	FROM downloads
+	GROUP BY status
+	`
+
+	rows, err := db.conn.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get download stats: %w", err)
+	}
+	defer rows.Close()
+
+	stats := make(map[string]int)
+	for rows.Next() {
+		var status string
+		var count int
+		err := rows.Scan(&status, &count)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan download stats: %w", err)
+		}
+		stats[status] = count
+	}
+
+	return stats, nil
+}

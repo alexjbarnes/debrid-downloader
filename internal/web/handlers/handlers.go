@@ -378,6 +378,26 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 		h.logger.Error("Failed to render polling trigger", "error", err)
 		return
 	}
+
+	// Update stats modal content with new download count
+	stats, err := h.db.GetDownloadStats()
+	if err != nil {
+		h.logger.Error("Failed to get stats for update", "error", err)
+	} else {
+		statsContent := templates.DownloadStatsContent(stats)
+		if err := statsContent.Render(r.Context(), w); err != nil {
+			h.logger.Error("Failed to render stats update", "error", err)
+		}
+
+		// Also update stats polling trigger
+		statsActiveCount := stats[string(models.StatusPending)] + 
+			stats[string(models.StatusDownloading)] + 
+			stats[string(models.StatusPaused)]
+		statsPollingComponent := templates.DynamicPollingTrigger("stats-polling-trigger", "/api/stats", "#stats-modal-content", statsActiveCount)
+		if err := statsPollingComponent.Render(r.Context(), w); err != nil {
+			h.logger.Error("Failed to render stats polling trigger", "error", err)
+		}
+	}
 }
 
 // getDirectorySuggestions returns directory suggestions based on filename fuzzy matching
@@ -1451,5 +1471,38 @@ func (h *Handlers) queueNextPendingDownload() {
 			"created_at", download.CreatedAt)
 	} else {
 		h.logger.Info("No pending downloads found to queue")
+	}
+}
+
+// GetDownloadStats handles HTMX requests for download statistics
+func (h *Handlers) GetDownloadStats(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+
+	// Get download statistics from database
+	stats, err := h.db.GetDownloadStats()
+	if err != nil {
+		h.logger.Error("Failed to get download stats", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Count active downloads for polling logic
+	activeCount := stats[string(models.StatusPending)] + 
+		stats[string(models.StatusDownloading)] + 
+		stats[string(models.StatusPaused)]
+
+	// Return just the modal content for out-of-band updates
+	component := templates.DownloadStatsContent(stats)
+	if err := component.Render(r.Context(), w); err != nil {
+		h.logger.Error("Failed to render download stats content", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	// Also send updated polling trigger as out-of-band swap
+	pollingComponent := templates.DynamicPollingTrigger("stats-polling-trigger", "/api/stats", "#stats-modal-content", activeCount)
+	if err := pollingComponent.Render(r.Context(), w); err != nil {
+		h.logger.Error("Failed to render stats polling trigger", "error", err)
+		return
 	}
 }

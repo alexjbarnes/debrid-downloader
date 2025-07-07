@@ -461,3 +461,131 @@ templ DownloadItem(download *models.Download) {
 		
 	</div>
 }
+
+// DownloadStatsModal displays statistics in a modal overlay
+templ DownloadStatsModal(stats map[string]int) {
+	<!-- Stats Modal Overlay -->
+	<div id="stats-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+		<div class="bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full max-h-[80vh] overflow-y-auto">
+			<!-- Modal Header -->
+			<div class="flex items-center justify-between p-6 border-b border-gray-200 dark:border-gray-700">
+				<div class="flex items-center space-x-2">
+					<span class="text-2xl">📊</span>
+					<h2 class="text-xl font-semibold text-gray-900 dark:text-white">Download Statistics</h2>
+				</div>
+				<button 
+					onclick="closeStatsModal()"
+					class="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+				>
+					<svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+						<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+					</svg>
+				</button>
+			</div>
+			
+			<!-- Modal Content -->
+			<div id="stats-modal-content" class="p-6">
+				@DownloadStatsContent(stats)
+			</div>
+		</div>
+	</div>
+}
+
+// DownloadStatsContent displays the actual stats content (for out-of-band updates)
+templ DownloadStatsContent(stats map[string]int) {
+	<div id="stats-modal-content" hx-swap-oob="outerHTML">
+		<!-- Stats Cards with Better Spacing -->
+		<div class="px-8 py-6">
+			<div class="grid grid-cols-2 md:grid-cols-5 gap-6">
+				<div class="text-center p-6 bg-gray-50 dark:bg-gray-700 rounded-lg">
+					<div class="text-3xl font-bold text-gray-600 dark:text-gray-400 mb-2">
+						{ fmt.Sprintf("%d", stats[string(models.StatusPending)]) }
+					</div>
+					<div class="text-sm font-medium text-gray-500 dark:text-gray-400">Pending</div>
+				</div>
+				<div class="text-center p-6 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+					<div class="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">
+						{ fmt.Sprintf("%d", stats[string(models.StatusDownloading)]) }
+					</div>
+					<div class="text-sm font-medium text-gray-500 dark:text-gray-400">Downloading</div>
+					if stats[string(models.StatusDownloading)] > 0 {
+						<div class="flex items-center justify-center mt-2">
+							<div class="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></div>
+						</div>
+					}
+				</div>
+				<div class="text-center p-6 bg-green-50 dark:bg-green-900/30 rounded-lg">
+					<div class="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">
+						{ fmt.Sprintf("%d", stats[string(models.StatusCompleted)]) }
+					</div>
+					<div class="text-sm font-medium text-gray-500 dark:text-gray-400">Completed</div>
+				</div>
+				<div class="text-center p-6 bg-red-50 dark:bg-red-900/30 rounded-lg">
+					<div class="text-3xl font-bold text-red-600 dark:text-red-400 mb-2">
+						{ fmt.Sprintf("%d", stats[string(models.StatusFailed)]) }
+					</div>
+					<div class="text-sm font-medium text-gray-500 dark:text-gray-400">Failed</div>
+				</div>
+				<div class="text-center p-6 bg-yellow-50 dark:bg-yellow-900/30 rounded-lg">
+					<div class="text-3xl font-bold text-yellow-600 dark:text-yellow-400 mb-2">
+						{ fmt.Sprintf("%d", stats[string(models.StatusPaused)]) }
+					</div>
+					<div class="text-sm font-medium text-gray-500 dark:text-gray-400">Paused</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+// StatsButton displays an inline stats button for the header
+templ StatsButton(stats map[string]int) {
+	<button 
+		id="stats-button"
+		onclick="openStatsModal()"
+		class="relative inline-flex items-center justify-center p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-all duration-200 hover:scale-105"
+		title="View Download Statistics"
+		hx-get="/api/stats"
+		hx-trigger="load"
+		hx-target="#stats-modal-content"
+		hx-swap="outerHTML"
+	>
+		<span class="text-lg">📊</span>
+		if stats[string(models.StatusDownloading)] > 0 {
+			<!-- Active download indicator -->
+			<div class="absolute -top-1 -right-1 w-3 h-3 bg-green-500 rounded-full animate-pulse border-2 border-white dark:border-gray-800"></div>
+		}
+	</button>
+	
+	<script>
+		function openStatsModal() {
+			document.getElementById('stats-modal').classList.remove('hidden');
+			document.body.style.overflow = 'hidden';
+		}
+		
+		function closeStatsModal() {
+			document.getElementById('stats-modal').classList.add('hidden');
+			document.body.style.overflow = 'auto';
+		}
+		
+		// Close modal on outside click
+		document.addEventListener('click', function(event) {
+			const modal = document.getElementById('stats-modal');
+			if (event.target === modal) {
+				closeStatsModal();
+			}
+		});
+		
+		// Close modal on escape key
+		document.addEventListener('keydown', function(event) {
+			if (event.key === 'Escape') {
+				closeStatsModal();
+			}
+		});
+	</script>
+}
+
+// DownloadStatsWithPolling wraps download stats modal with polling
+templ DownloadStatsWithPolling(stats map[string]int, activeCount int) {
+	@DownloadStatsModal(stats)
+	@DynamicPollingTrigger("stats-polling-trigger", "/api/stats", "#stats-modal-content", activeCount)
+}
