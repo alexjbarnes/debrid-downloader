@@ -50,12 +50,12 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 	filename := r.URL.Query().Get("filename")
 
 	// Get directory suggestions based on filename
-	suggestedDir, recentDirs := h.getDirectorySuggestions(filename)
+	suggestedDir := h.getDirectorySuggestions(filename)
 
 	// Start with empty downloads list - user must select statuses to see results
 	var downloads []*models.Download
 
-	component := templates.Base("Debrid Downloader", templates.Home(downloads, suggestedDir, recentDirs))
+	component := templates.Base("Debrid Downloader", templates.Home(downloads, suggestedDir))
 	if err := component.Render(r.Context(), w); err != nil {
 		h.logger.Error("Failed to render home template", "error", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -305,7 +305,7 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get directory suggestions for form reset
-	suggestedDir, _ := h.getDirectorySuggestions("")
+	suggestedDir := h.getDirectorySuggestions("")
 
 	// Send empty result div to clear any previous messages
 	if _, err := w.Write([]byte(`<div id="result" class="mt-6"></div>`)); err != nil {
@@ -371,7 +371,7 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 }
 
 // getDirectorySuggestions returns directory suggestions based on filename fuzzy matching
-func (h *Handlers) getDirectorySuggestions(filename string) (suggestedDir string, recentDirs []string) {
+func (h *Handlers) getDirectorySuggestions(filename string) string {
 	// Use the configured base path as default
 	basePath := h.folderService.BasePath
 
@@ -379,12 +379,12 @@ func (h *Handlers) getDirectorySuggestions(filename string) (suggestedDir string
 	mappings, err := h.db.GetDirectoryMappings()
 	if err != nil {
 		h.logger.Error("Failed to get directory mappings", "error", err)
-		return basePath, []string{}
+		return basePath
 	}
 
-	// If no mappings exist, just return base path with empty suggestions
+	// If no mappings exist, just return base path
 	if len(mappings) == 0 {
-		return basePath, []string{}
+		return basePath
 	}
 
 	// Score directories based on filename matching
@@ -409,8 +409,6 @@ func (h *Handlers) getDirectorySuggestions(filename string) (suggestedDir string
 		}
 	}
 
-	// Only use directories from database mappings - no hardcoded defaults
-
 	// Sort by score (descending) then by use count (descending)
 	sort.Slice(scores, func(i, j int) bool {
 		if scores[i].score == scores[j].score {
@@ -419,27 +417,16 @@ func (h *Handlers) getDirectorySuggestions(filename string) (suggestedDir string
 		return scores[i].score > scores[j].score
 	})
 
-	// Build results
-	var suggestions []string
-	seen := make(map[string]bool)
-
-	for _, score := range scores {
-		if !seen[score.directory] && len(suggestions) < 5 {
-			suggestions = append(suggestions, score.directory)
-			seen[score.directory] = true
-		}
+	// Return best match or base path
+	if len(scores) > 0 {
+		return scores[0].directory
 	}
 
-	// Return suggestions from database only
-	if len(suggestions) == 0 {
-		return basePath, []string{}
-	}
-
-	return suggestions[0], suggestions
+	return basePath
 }
 
 // getDirectorySuggestionsForURL returns directory suggestions based on URL fuzzy matching
-func (h *Handlers) getDirectorySuggestionsForURL(url string) (suggestedDir string, recentDirs []string) {
+func (h *Handlers) getDirectorySuggestionsForURL(url string) string {
 	// Use the configured base path as default
 	basePath := h.folderService.BasePath
 
@@ -447,12 +434,12 @@ func (h *Handlers) getDirectorySuggestionsForURL(url string) (suggestedDir strin
 	mappings, err := h.db.GetDirectorySuggestionsForURL(url)
 	if err != nil {
 		h.logger.Error("Failed to get directory suggestions for URL", "error", err, "url", url)
-		return basePath, []string{}
+		return basePath
 	}
 
 	// If no mappings exist, try to suggest based on URL analysis
 	if len(mappings) == 0 {
-		return h.getSmartDirectorySuggestion(url, basePath), []string{}
+		return h.getSmartDirectorySuggestion(url, basePath)
 	}
 
 	// Score directories based on URL similarity
@@ -503,23 +490,12 @@ func (h *Handlers) getDirectorySuggestionsForURL(url string) (suggestedDir strin
 		return scores[i].score > scores[j].score
 	})
 
-	// Build results
-	var suggestions []string
-	seen := make(map[string]bool)
-
-	for _, score := range scores {
-		if !seen[score.directory] && len(suggestions) < 5 {
-			suggestions = append(suggestions, score.directory)
-			seen[score.directory] = true
-		}
+	// Return best match or base path
+	if len(scores) > 0 {
+		return scores[0].directory
 	}
 
-	// Return suggestions from database only
-	if len(suggestions) == 0 {
-		return basePath, []string{}
-	}
-
-	return suggestions[0], suggestions
+	return basePath
 }
 
 // fuzzyMatch returns a score (0-100) for how well filename matches pattern
@@ -1054,7 +1030,7 @@ func (h *Handlers) GetDirectorySuggestion(w http.ResponseWriter, r *http.Request
 	}
 
 	// Get directory suggestion based on URL fuzzy matching
-	suggestedDir, _ := h.getDirectorySuggestionsForURL(url)
+	suggestedDir := h.getDirectorySuggestionsForURL(url)
 	if _, err := w.Write([]byte(suggestedDir)); err != nil {
 		h.logger.Error("Failed to write response", "error", err)
 	}

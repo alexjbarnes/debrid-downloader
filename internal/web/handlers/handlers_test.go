@@ -486,20 +486,16 @@ func TestGetDirectorySuggestions(t *testing.T) {
 	handlers := NewHandlers(db, client, "/tmp/test", worker)
 
 	// Test with empty filename
-	suggestedDir, recentDirs := handlers.getDirectorySuggestions("")
+	suggestedDir := handlers.getDirectorySuggestions("")
 	require.Equal(t, "/tmp/test", suggestedDir)
-	// recentDirs length will depend on database content, just check it's not nil
-	require.NotNil(t, recentDirs)
 
 	// Test with movie file
-	suggestedDir, recentDirs = handlers.getDirectorySuggestions("action.movie.2023.mp4")
+	suggestedDir = handlers.getDirectorySuggestions("action.movie.2023.mp4")
 	require.NotEmpty(t, suggestedDir)
-	require.NotNil(t, recentDirs)
 
 	// Test with music file
-	suggestedDir, recentDirs = handlers.getDirectorySuggestions("album.song.mp3")
+	suggestedDir = handlers.getDirectorySuggestions("album.song.mp3")
 	require.NotEmpty(t, suggestedDir)
-	require.NotNil(t, recentDirs)
 }
 
 func TestCreateOrUpdateDirectoryMapping(t *testing.T) {
@@ -1288,9 +1284,8 @@ func TestGetDirectorySuggestionsForURL(t *testing.T) {
 	handlers := NewHandlers(db, client, "/tmp/test", worker)
 
 	// Test with empty database
-	suggestedDir, recentDirs := handlers.getDirectorySuggestionsForURL("https://example.com/movie.mp4")
+	suggestedDir := handlers.getDirectorySuggestionsForURL("https://example.com/movie.mp4")
 	require.NotEmpty(t, suggestedDir)
-	require.NotNil(t, recentDirs)
 
 	// Create some directory mappings first
 	mapping := &models.DirectoryMapping{
@@ -1305,9 +1300,8 @@ func TestGetDirectorySuggestionsForURL(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test with URL matching
-	suggestedDir, recentDirs = handlers.getDirectorySuggestionsForURL("https://example.com/movie2.mp4")
+	suggestedDir = handlers.getDirectorySuggestionsForURL("https://example.com/movie2.mp4")
 	require.NotEmpty(t, suggestedDir)
-	require.NotNil(t, recentDirs)
 }
 
 func TestCreateOrUpdateDirectoryMappingWithNoPattern(t *testing.T) {
@@ -1550,10 +1544,8 @@ func TestGetDirectorySuggestionsWithMixedMappings(t *testing.T) {
 	}
 
 	// Test with filename that matches multiple patterns
-	suggestedDir, recentDirs := handlers.getDirectorySuggestions("action.movie.2023.mp4")
+	suggestedDir := handlers.getDirectorySuggestions("action.movie.2023.mp4")
 	require.NotEmpty(t, suggestedDir)
-	require.NotNil(t, recentDirs)
-	require.True(t, len(recentDirs) <= 5) // Should limit to 5 suggestions
 }
 
 func TestDeleteDownloadDatabaseError(t *testing.T) {
@@ -1810,7 +1802,7 @@ func TestAdvancedDirectoryMappingScenarios(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test URL-based matching
-	suggestedDir, _ := handlers.getDirectorySuggestionsForURL("https://example.com/movies/thriller.mp4")
+	suggestedDir := handlers.getDirectorySuggestionsForURL("https://example.com/movies/thriller.mp4")
 	require.NotEmpty(t, suggestedDir)
 
 	// Test with smart directory suggestion fallback
@@ -2395,9 +2387,8 @@ func TestHandlers_AdditionalPathCoverage(t *testing.T) {
 		}
 
 		// Test with a URL that should match the domain pattern
-		suggestedDir, recentDirs := handlers.getDirectorySuggestionsForURL("https://videos.example.com/new-movie.mkv")
+		suggestedDir := handlers.getDirectorySuggestionsForURL("https://videos.example.com/new-movie.mkv")
 		require.NotEmpty(t, suggestedDir)
-		require.NotNil(t, recentDirs)
 	})
 
 	t.Run("ensureUniqueFilename with many conflicts", func(t *testing.T) {
