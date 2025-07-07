@@ -309,7 +309,12 @@ templ Home(downloads []*models.Download, suggestedDir string, recentDirs []strin
 					localStorage.setItem('debrid-sort-order', sortInput.value);
 					
 					// Trigger the search with new sort order
-					htmx.trigger('#search-form', 'submit');
+					// Use the downloads list element to trigger search with current form data
+					htmx.ajax('POST', '/downloads/search', {
+						source: '#search-form',
+						target: '#downloads-list',
+						swap: 'innerHTML'
+					});
 				}
 				
 				function selectAllStatuses() {
