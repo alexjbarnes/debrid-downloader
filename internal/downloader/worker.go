@@ -210,6 +210,21 @@ func (w *Worker) ResumeDownload(downloadID int64) error {
 	return nil
 }
 
+// CancelCurrentDownloadIfMatches cancels the current download if it matches the given ID
+func (w *Worker) CancelCurrentDownloadIfMatches(downloadID int64) bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.currentDownload != nil && w.currentDownload.ID == downloadID {
+		w.logger.Info("Canceling current download", "download_id", downloadID)
+		if w.cancel != nil {
+			w.cancel()
+		}
+		return true
+	}
+	return false
+}
+
 // processDownload handles the actual downloading of a file
 func (w *Worker) processDownload(ctx context.Context, downloadID int64) {
 	// Get download details from database
@@ -248,6 +263,13 @@ func (w *Worker) processDownload(ctx context.Context, downloadID int64) {
 			case <-ctx.Done():
 				return
 			case <-time.After(backoffDuration):
+			}
+			
+			// Check if the download was deleted during the backoff period
+			if _, err := w.db.GetDownload(downloadID); err != nil {
+				w.logger.Info("Download was deleted during retry backoff, stopping processing",
+					"download_id", downloadID)
+				return
 			}
 		}
 

@@ -76,6 +76,11 @@ func runServer(server *web.Server, downloadWorker *downloader.Worker, db *databa
 	// Start download worker in goroutine
 	go downloadWorker.Start(ctx)
 
+	// Queue any pending downloads from previous session
+	if err := queuePendingDownloads(db, downloadWorker); err != nil {
+		slog.Error("Failed to queue pending downloads", "error", err)
+	}
+
 	// Start history cleanup routine (runs daily)
 	go startHistoryCleanup(ctx, db)
 
@@ -167,4 +172,27 @@ func cleanupOldDownloads(db *database.DB) {
 	}
 
 	slog.Info("History cleanup completed")
+}
+
+// queuePendingDownloads looks for any pending downloads from previous session and queues them
+func queuePendingDownloads(db *database.DB, worker *downloader.Worker) error {
+	// Get pending downloads ordered by creation time (oldest first)
+	pendingDownloads, err := db.GetPendingDownloadsOldestFirst()
+	if err != nil {
+		return fmt.Errorf("failed to get pending downloads: %w", err)
+	}
+
+	for _, download := range pendingDownloads {
+		worker.QueueDownload(download.ID)
+		slog.Info("Queued pending download from previous session", 
+			"download_id", download.ID, 
+			"filename", download.Filename,
+			"created_at", download.CreatedAt)
+	}
+
+	if len(pendingDownloads) > 0 {
+		slog.Info("Queued pending downloads from previous session", "count", len(pendingDownloads))
+	}
+
+	return nil
 }

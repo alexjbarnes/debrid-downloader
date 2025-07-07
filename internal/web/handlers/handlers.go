@@ -1192,6 +1192,29 @@ func (h *Handlers) DeleteDownload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if this was an active download that needs to trigger queue processing
+	wasActive := download.Status == models.StatusPending || 
+		download.Status == models.StatusDownloading || 
+		download.Status == models.StatusPaused
+	
+	h.logger.Info("Checking download status before deletion", 
+		"download_id", downloadID,
+		"status", download.Status,
+		"was_active", wasActive)
+
+	// If this is the currently downloading item, cancel it first
+	if download.Status == models.StatusDownloading {
+		wasCanceled := h.downloadWorker.CancelCurrentDownloadIfMatches(downloadID)
+		h.logger.Info("Attempted to cancel current download", 
+			"download_id", downloadID, 
+			"was_canceled", wasCanceled)
+		
+		// Give the worker a moment to process the cancellation
+		if wasCanceled {
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
 	// Delete from database (this will remove the history record)
 	if err := h.db.DeleteDownload(downloadID); err != nil {
 		h.logger.Error("Failed to delete download", "download_id", downloadID, "error", err)
@@ -1209,6 +1232,16 @@ func (h *Handlers) DeleteDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.logger.Info("Download deleted from history", "download_id", downloadID, "filename", download.Filename)
+
+	// If this was an active download, check for and queue next pending download
+	if wasActive {
+		h.logger.Info("Active download was canceled, checking for next pending download", 
+			"canceled_id", downloadID, 
+			"canceled_status", download.Status)
+		// Add a small delay to ensure the worker has finished processing the cancellation
+		time.Sleep(200 * time.Millisecond)
+		h.queueNextPendingDownload()
+	}
 
 	// Return empty response to remove the item from DOM
 	w.WriteHeader(http.StatusOK)
@@ -1393,4 +1426,30 @@ func (h *Handlers) getSmartDirectorySuggestion(url, basePath string) string {
 
 	// Fallback to base path
 	return basePath
+}
+
+// queueNextPendingDownload checks for pending downloads and queues the next one
+func (h *Handlers) queueNextPendingDownload() {
+	h.logger.Debug("Checking for next pending download to queue")
+	
+	// Get pending downloads ordered by creation time (oldest first)
+	pendingDownloads, err := h.db.GetPendingDownloadsOldestFirst()
+	if err != nil {
+		h.logger.Error("Failed to get pending downloads for queue check", "error", err)
+		return
+	}
+
+	h.logger.Debug("Found pending downloads", "count", len(pendingDownloads))
+
+	// Queue the first (oldest) pending download
+	if len(pendingDownloads) > 0 {
+		download := pendingDownloads[0]
+		h.downloadWorker.QueueDownload(download.ID)
+		h.logger.Info("Queued next pending download", 
+			"download_id", download.ID, 
+			"filename", download.Filename,
+			"created_at", download.CreatedAt)
+	} else {
+		h.logger.Info("No pending downloads found to queue")
+	}
 }

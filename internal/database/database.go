@@ -254,6 +254,46 @@ func (db *DB) ListDownloads(limit, offset int) ([]*models.Download, error) {
 	return downloads, nil
 }
 
+// GetPendingDownloadsOldestFirst retrieves all pending downloads ordered by creation time (oldest first)
+func (db *DB) GetPendingDownloadsOldestFirst() ([]*models.Download, error) {
+	query := `
+	SELECT id, original_url, unrestricted_url, filename, directory, status,
+		   progress, file_size, downloaded_bytes, download_speed,
+		   error_message, retry_count, created_at, updated_at,
+		   started_at, completed_at, paused_at, total_paused_time,
+		   group_id, is_archive, extracted_files
+	FROM downloads 
+	WHERE status = ?
+	ORDER BY created_at ASC, id ASC
+	`
+
+	rows, err := db.conn.Query(query, models.StatusPending)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get pending downloads: %w", err)
+	}
+	defer rows.Close()
+
+	var downloads []*models.Download
+	for rows.Next() {
+		var download models.Download
+		err := rows.Scan(
+			&download.ID, &download.OriginalURL, &download.UnrestrictedURL,
+			&download.Filename, &download.Directory, &download.Status,
+			&download.Progress, &download.FileSize, &download.DownloadedBytes,
+			&download.DownloadSpeed, &download.ErrorMessage, &download.RetryCount,
+			&download.CreatedAt, &download.UpdatedAt, &download.StartedAt,
+			&download.CompletedAt, &download.PausedAt, &download.TotalPausedTime,
+			&download.GroupID, &download.IsArchive, &download.ExtractedFiles,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan download: %w", err)
+		}
+		downloads = append(downloads, &download)
+	}
+
+	return downloads, nil
+}
+
 // SearchDownloads performs a fuzzy search on downloads with support for multiple status filters and custom sort order
 func (db *DB) SearchDownloads(searchTerm string, statusFilters []string, sortOrder string, limit, offset int) ([]*models.Download, error) {
 	query := `
