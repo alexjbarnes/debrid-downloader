@@ -32,7 +32,7 @@ func History(downloads []*models.Download) templ.Component {
 			templ_7745c5c3_Var1 = templ.NopComponent
 		}
 		ctx = templ.ClearChildren(ctx)
-		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"space-y-6\"><div class=\"flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4\"><h2 class=\"text-2xl font-semibold text-gray-900 dark:text-white\">Download History</h2><!-- Search and Filter --><div class=\"flex flex-col sm:flex-row gap-4\"><form id=\"search-form\" class=\"flex flex-col sm:flex-row gap-4\"><input type=\"text\" placeholder=\"Search downloads...\" class=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors\" hx-post=\"/downloads/search\" hx-target=\"#downloads-list\" hx-trigger=\"keyup changed delay:300ms, change from:#status-filter\" hx-include=\"#search-form\" name=\"search\" id=\"search-input\"> <select class=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors\" hx-post=\"/downloads/search\" hx-target=\"#downloads-list\" hx-trigger=\"change\" hx-include=\"#search-form\" name=\"status\" id=\"status-filter\"><option value=\"\">All Status</option> <option value=\"pending\">Pending</option> <option value=\"downloading\">Downloading</option> <option value=\"completed\">Completed</option> <option value=\"failed\">Failed</option> <option value=\"paused\">Paused</option></select></form></div></div><!-- Downloads List --><div id=\"downloads-list\" class=\"space-y-4\" hx-post=\"/downloads/search\" hx-trigger=\"load\" hx-include=\"#search-form\">")
+		templ_7745c5c3_Err = templruntime.WriteString(templ_7745c5c3_Buffer, 1, "<div class=\"space-y-6\"><div class=\"flex flex-col sm:flex-row sm:justify-between sm:items-center gap-4\"><h2 class=\"text-2xl font-semibold text-gray-900 dark:text-white\">Download History</h2><!-- Search and Filter --><div class=\"flex flex-col sm:flex-row gap-4\"><form id=\"search-form\" class=\"flex flex-col sm:flex-row gap-4\"><input type=\"text\" placeholder=\"Search downloads...\" class=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 transition-colors\" hx-post=\"/downloads/search\" hx-target=\"#downloads-list\" hx-trigger=\"keyup changed delay:300ms, change from:#status-filter\" hx-include=\"#search-form\" name=\"search\" id=\"search-input\"><div class=\"relative flex flex-col\"><div class=\"flex justify-end mb-1\"><span class=\"text-xs text-blue-500 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 cursor-pointer\" onclick=\"selectAllStatuses()\">Select All</span></div><select class=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-colors w-full\" hx-post=\"/downloads/search\" hx-target=\"#downloads-list\" hx-trigger=\"change\" hx-include=\"#search-form\" name=\"status\" id=\"status-filter\" multiple size=\"6\" style=\"min-width: 200px;\"><option value=\"pending\">Pending</option> <option value=\"downloading\">Downloading</option> <option value=\"completed\">Completed</option> <option value=\"failed\">Failed</option> <option value=\"paused\">Paused</option></select></div><input type=\"hidden\" name=\"sort\" id=\"sort-order\" value=\"desc\"></form><!-- Sort Toggle Button --><button type=\"button\" class=\"px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none bg-white dark:bg-gray-700 text-gray-900 dark:text-white transition-all flex items-center gap-2\" onclick=\"toggleSort()\"><span id=\"sort-icon\">↓</span> <span id=\"sort-text\">Newest First</span></button></div></div><script>\n\t\t\t// Load saved selections on page load\n\t\t\tdocument.addEventListener('DOMContentLoaded', function() {\n\t\t\t\tloadSavedSelections();\n\t\t\t});\n\t\t\t\n\t\t\tfunction toggleSort() {\n\t\t\t\tconst sortInput = document.getElementById('sort-order');\n\t\t\t\tconst sortIcon = document.getElementById('sort-icon');\n\t\t\t\tconst sortText = document.getElementById('sort-text');\n\t\t\t\t\n\t\t\t\tif (sortInput.value === 'desc') {\n\t\t\t\t\tsortInput.value = 'asc';\n\t\t\t\t\tsortIcon.textContent = '↑';\n\t\t\t\t\tsortText.textContent = 'Oldest First';\n\t\t\t\t} else {\n\t\t\t\t\tsortInput.value = 'desc';\n\t\t\t\t\tsortIcon.textContent = '↓';\n\t\t\t\t\tsortText.textContent = 'Newest First';\n\t\t\t\t}\n\t\t\t\t\n\t\t\t\t// Save sort order\n\t\t\t\tlocalStorage.setItem('debrid-sort-order', sortInput.value);\n\t\t\t\t\n\t\t\t\t// Trigger the search with new sort order\n\t\t\t\thtmx.trigger('#search-form', 'submit');\n\t\t\t}\n\t\t\t\n\t\t\tfunction selectAllStatuses() {\n\t\t\t\tconst statusFilter = document.getElementById('status-filter');\n\t\t\t\tconst options = statusFilter.options;\n\t\t\t\tfor (let i = 0; i < options.length; i++) {\n\t\t\t\t\toptions[i].selected = true;\n\t\t\t\t}\n\t\t\t\t// Save selections\n\t\t\t\tsaveStatusSelections();\n\t\t\t\t// Trigger the search with all statuses selected\n\t\t\t\thtmx.trigger('#status-filter', 'change');\n\t\t\t}\n\t\t\t\n\t\t\tfunction saveStatusSelections() {\n\t\t\t\tconst statusFilter = document.getElementById('status-filter');\n\t\t\t\tconst selectedValues = Array.from(statusFilter.selectedOptions).map(option => option.value);\n\t\t\t\tlocalStorage.setItem('debrid-selected-statuses', JSON.stringify(selectedValues));\n\t\t\t}\n\t\t\t\n\t\t\tfunction loadSavedSelections() {\n\t\t\t\t// Load saved statuses\n\t\t\t\tconst savedStatuses = localStorage.getItem('debrid-selected-statuses');\n\t\t\t\tif (savedStatuses) {\n\t\t\t\t\ttry {\n\t\t\t\t\t\tconst selectedValues = JSON.parse(savedStatuses);\n\t\t\t\t\t\tconst statusFilter = document.getElementById('status-filter');\n\t\t\t\t\t\t\n\t\t\t\t\t\t// Clear all selections first\n\t\t\t\t\t\tfor (let i = 0; i < statusFilter.options.length; i++) {\n\t\t\t\t\t\t\tstatusFilter.options[i].selected = false;\n\t\t\t\t\t\t}\n\t\t\t\t\t\t\n\t\t\t\t\t\t// Set saved selections\n\t\t\t\t\t\tselectedValues.forEach(value => {\n\t\t\t\t\t\t\tconst option = statusFilter.querySelector(`option[value=\"${value}\"]`);\n\t\t\t\t\t\t\tif (option) {\n\t\t\t\t\t\t\t\toption.selected = true;\n\t\t\t\t\t\t\t}\n\t\t\t\t\t\t});\n\t\t\t\t\t\t\n\t\t\t\t\t\t// Trigger search with loaded selections\n\t\t\t\t\t\tif (selectedValues.length > 0) {\n\t\t\t\t\t\t\thtmx.trigger('#status-filter', 'change');\n\t\t\t\t\t\t}\n\t\t\t\t\t} catch (e) {\n\t\t\t\t\t\tconsole.warn('Failed to load saved status selections:', e);\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t\t\n\t\t\t\t// Load saved sort order\n\t\t\t\tconst savedSort = localStorage.getItem('debrid-sort-order');\n\t\t\t\tif (savedSort) {\n\t\t\t\t\tconst sortInput = document.getElementById('sort-order');\n\t\t\t\t\tconst sortIcon = document.getElementById('sort-icon');\n\t\t\t\t\tconst sortText = document.getElementById('sort-text');\n\t\t\t\t\t\n\t\t\t\t\tsortInput.value = savedSort;\n\t\t\t\t\tif (savedSort === 'asc') {\n\t\t\t\t\t\tsortIcon.textContent = '↑';\n\t\t\t\t\t\tsortText.textContent = 'Oldest First';\n\t\t\t\t\t} else {\n\t\t\t\t\t\tsortIcon.textContent = '↓';\n\t\t\t\t\t\tsortText.textContent = 'Newest First';\n\t\t\t\t\t}\n\t\t\t\t}\n\t\t\t}\n\t\t\t\n\t\t\t// Save selections when status filter changes\n\t\t\tdocument.getElementById('status-filter').addEventListener('change', function() {\n\t\t\t\tsaveStatusSelections();\n\t\t\t});\n\t\t</script><!-- Downloads List --><div id=\"downloads-list\" class=\"space-y-4\" hx-post=\"/downloads/search\" hx-trigger=\"load\" hx-include=\"#search-form\">")
 		if templ_7745c5c3_Err != nil {
 			return templ_7745c5c3_Err
 		}
@@ -175,7 +175,7 @@ func DownloadItem(download *models.Download) templ.Component {
 			var templ_7745c5c3_Var7 string
 			templ_7745c5c3_Var7, templ_7745c5c3_Err = templ.JoinStringErrs(download.GroupID[:8])
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 89, Col: 35}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 213, Col: 35}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var7))
 			if templ_7745c5c3_Err != nil {
@@ -193,7 +193,7 @@ func DownloadItem(download *models.Download) templ.Component {
 		var templ_7745c5c3_Var8 string
 		templ_7745c5c3_Var8, templ_7745c5c3_Err = templ.JoinStringErrs(download.Filename)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 98, Col: 23}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 222, Col: 23}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var8))
 		if templ_7745c5c3_Err != nil {
@@ -206,7 +206,7 @@ func DownloadItem(download *models.Download) templ.Component {
 		var templ_7745c5c3_Var9 string
 		templ_7745c5c3_Var9, templ_7745c5c3_Err = templ.JoinStringErrs(download.OriginalURL)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 105, Col: 26}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 229, Col: 26}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var9))
 		if templ_7745c5c3_Err != nil {
@@ -241,7 +241,7 @@ func DownloadItem(download *models.Download) templ.Component {
 		var templ_7745c5c3_Var12 string
 		templ_7745c5c3_Var12, templ_7745c5c3_Err = templ.JoinStringErrs(download.Directory)
 		if templ_7745c5c3_Err != nil {
-			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 113, Col: 49}
+			return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 237, Col: 49}
 		}
 		_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var12))
 		if templ_7745c5c3_Err != nil {
@@ -259,7 +259,7 @@ func DownloadItem(download *models.Download) templ.Component {
 			var templ_7745c5c3_Var13 string
 			templ_7745c5c3_Var13, templ_7745c5c3_Err = templ.JoinStringErrs(download.CompletedAt.Format("02/01/2006 15:04"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 118, Col: 126}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 242, Col: 126}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var13))
 			if templ_7745c5c3_Err != nil {
@@ -277,7 +277,7 @@ func DownloadItem(download *models.Download) templ.Component {
 			var templ_7745c5c3_Var14 string
 			templ_7745c5c3_Var14, templ_7745c5c3_Err = templ.JoinStringErrs(download.CreatedAt.Format("02/01/2006 15:04"))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 122, Col: 124}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 246, Col: 124}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var14))
 			if templ_7745c5c3_Err != nil {
@@ -296,7 +296,7 @@ func DownloadItem(download *models.Download) templ.Component {
 			var templ_7745c5c3_Var15 string
 			templ_7745c5c3_Var15, templ_7745c5c3_Err = templ.JoinStringErrs(formatFileSize(download.FileSize))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 128, Col: 112}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 252, Col: 112}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var15))
 			if templ_7745c5c3_Err != nil {
@@ -315,7 +315,7 @@ func DownloadItem(download *models.Download) templ.Component {
 			var templ_7745c5c3_Var16 string
 			templ_7745c5c3_Var16, templ_7745c5c3_Err = templ.JoinStringErrs(formatDuration(calculateActiveDownloadTime(download)))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 134, Col: 141}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 258, Col: 141}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var16))
 			if templ_7745c5c3_Err != nil {
@@ -334,7 +334,7 @@ func DownloadItem(download *models.Download) templ.Component {
 			var templ_7745c5c3_Var17 string
 			templ_7745c5c3_Var17, templ_7745c5c3_Err = templ.JoinStringErrs(formatSpeed(download.DownloadSpeed))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 140, Col: 119}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 264, Col: 119}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var17))
 			if templ_7745c5c3_Err != nil {
@@ -357,7 +357,7 @@ func DownloadItem(download *models.Download) templ.Component {
 			var templ_7745c5c3_Var18 string
 			templ_7745c5c3_Var18, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/downloads/%d", download.ID))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 150, Col: 58}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 274, Col: 58}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var18))
 			if templ_7745c5c3_Err != nil {
@@ -380,7 +380,7 @@ func DownloadItem(download *models.Download) templ.Component {
 			var templ_7745c5c3_Var19 string
 			templ_7745c5c3_Var19, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("%.1f%%", download.Progress))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 164, Col: 53}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 288, Col: 53}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var19))
 			if templ_7745c5c3_Err != nil {
@@ -398,7 +398,7 @@ func DownloadItem(download *models.Download) templ.Component {
 				var templ_7745c5c3_Var20 string
 				templ_7745c5c3_Var20, templ_7745c5c3_Err = templ.JoinStringErrs(formatSpeed(download.DownloadSpeed))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 166, Col: 49}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 290, Col: 49}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var20))
 				if templ_7745c5c3_Err != nil {
@@ -416,7 +416,7 @@ func DownloadItem(download *models.Download) templ.Component {
 			var templ_7745c5c3_Var21 string
 			templ_7745c5c3_Var21, templ_7745c5c3_Err = templruntime.SanitizeStyleAttributeValues(fmt.Sprintf("width: %.1f%%", download.Progress))
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 172, Col: 61}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 296, Col: 61}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var21))
 			if templ_7745c5c3_Err != nil {
@@ -439,7 +439,7 @@ func DownloadItem(download *models.Download) templ.Component {
 			var templ_7745c5c3_Var22 string
 			templ_7745c5c3_Var22, templ_7745c5c3_Err = templ.JoinStringErrs(download.ErrorMessage)
 			if templ_7745c5c3_Err != nil {
-				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 181, Col: 77}
+				return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 305, Col: 77}
 			}
 			_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var22))
 			if templ_7745c5c3_Err != nil {
@@ -457,7 +457,7 @@ func DownloadItem(download *models.Download) templ.Component {
 				var templ_7745c5c3_Var23 string
 				templ_7745c5c3_Var23, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/downloads/%d/retry", download.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 185, Col: 63}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 309, Col: 63}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var23))
 				if templ_7745c5c3_Err != nil {
@@ -490,7 +490,7 @@ func DownloadItem(download *models.Download) templ.Component {
 				var templ_7745c5c3_Var24 string
 				templ_7745c5c3_Var24, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/downloads/%d/pause", download.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 203, Col: 64}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 327, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var24))
 				if templ_7745c5c3_Err != nil {
@@ -509,7 +509,7 @@ func DownloadItem(download *models.Download) templ.Component {
 				var templ_7745c5c3_Var25 string
 				templ_7745c5c3_Var25, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/downloads/%d/resume", download.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 214, Col: 65}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 338, Col: 65}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var25))
 				if templ_7745c5c3_Err != nil {
@@ -528,7 +528,7 @@ func DownloadItem(download *models.Download) templ.Component {
 				var templ_7745c5c3_Var26 string
 				templ_7745c5c3_Var26, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/downloads/%d/retry", download.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 225, Col: 64}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 349, Col: 64}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var26))
 				if templ_7745c5c3_Err != nil {
@@ -551,7 +551,7 @@ func DownloadItem(download *models.Download) templ.Component {
 				var templ_7745c5c3_Var27 string
 				templ_7745c5c3_Var27, templ_7745c5c3_Err = templ.JoinStringErrs(fmt.Sprintf("/downloads/%d", download.ID))
 				if templ_7745c5c3_Err != nil {
-					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 239, Col: 60}
+					return templ.Error{Err: templ_7745c5c3_Err, FileName: `internal/web/templates/history.templ`, Line: 363, Col: 60}
 				}
 				_, templ_7745c5c3_Err = templ_7745c5c3_Buffer.WriteString(templ.EscapeString(templ_7745c5c3_Var27))
 				if templ_7745c5c3_Err != nil {

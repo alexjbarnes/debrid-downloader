@@ -254,8 +254,8 @@ func (db *DB) ListDownloads(limit, offset int) ([]*models.Download, error) {
 	return downloads, nil
 }
 
-// SearchDownloads retrieves downloads with search and filter criteria
-func (db *DB) SearchDownloads(searchTerm, statusFilter string, limit, offset int) ([]*models.Download, error) {
+// SearchDownloads performs a fuzzy search on downloads with support for multiple status filters and custom sort order
+func (db *DB) SearchDownloads(searchTerm string, statusFilters []string, sortOrder string, limit, offset int) ([]*models.Download, error) {
 	query := `
 	SELECT id, original_url, unrestricted_url, filename, directory, status,
 		   progress, file_size, downloaded_bytes, download_speed,
@@ -277,16 +277,23 @@ func (db *DB) SearchDownloads(searchTerm, statusFilter string, limit, offset int
 			for _, word := range words {
 				// Add multiple pattern variations for better fuzzy matching
 				wordPattern := "%" + word + "%"
+				var wordConditions []string
 
-				// Try the word as-is and also with common variations
-				wordConditions := []string{
-					"(LOWER(filename) LIKE ? OR LOWER(original_url) LIKE ? OR LOWER(directory) LIKE ?)",
-				}
+				// Exact partial match
+				wordConditions = append(wordConditions, "(LOWER(filename) LIKE ? OR LOWER(original_url) LIKE ? OR LOWER(directory) LIKE ?)")
 				args = append(args, wordPattern, wordPattern, wordPattern)
 
-				// Add pattern for partial word matching (if word is long enough)
+				// Match with word boundaries for more precise results
 				if len(word) >= 3 {
-					partialPattern := "%" + word[:len(word)-1] + "%"
+					// Pattern that allows character separation (e.g., "example" matches "example_file")
+					partialPattern := "%"
+					for i, char := range word {
+						if i > 0 {
+							partialPattern += "_?"
+						}
+						partialPattern += string(char)
+					}
+					partialPattern += "%"
 					wordConditions = append(wordConditions, "(LOWER(filename) LIKE ? OR LOWER(original_url) LIKE ? OR LOWER(directory) LIKE ?)")
 					args = append(args, partialPattern, partialPattern, partialPattern)
 				}
@@ -306,13 +313,27 @@ func (db *DB) SearchDownloads(searchTerm, statusFilter string, limit, offset int
 		}
 	}
 
-	// Add status filter
-	if statusFilter != "" {
-		query += ` AND status = ?`
-		args = append(args, statusFilter)
+	// Add status filter - support multiple statuses
+	// If no statuses provided, return no results
+	if len(statusFilters) == 0 {
+		query += ` AND 1=0`
+	} else {
+		placeholders := make([]string, len(statusFilters))
+		for i, status := range statusFilters {
+			placeholders[i] = "?"
+			args = append(args, status)
+		}
+		query += ` AND status IN (` + strings.Join(placeholders, ",") + `)`
 	}
 
-	query += ` ORDER BY created_at DESC, id ASC LIMIT ? OFFSET ?`
+	// Add sort order
+	if sortOrder == "asc" {
+		query += ` ORDER BY created_at ASC, id DESC`
+	} else {
+		query += ` ORDER BY created_at DESC, id ASC`
+	}
+	
+	query += ` LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 
 	rows, err := db.conn.Query(query, args...)

@@ -349,35 +349,35 @@ func TestDB_SearchDownloads(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	// Test search by filename
-	results, err := db.SearchDownloads("movie", "", 10, 0)
+	// Test search by filename with specific status
+	results, err := db.SearchDownloads("movie", []string{"completed"}, "desc", 10, 0)
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Equal(t, "action_movie.mp4", results[0].Filename)
 
 	// Test search by status
-	results, err = db.SearchDownloads("", "pending", 10, 0)
+	results, err = db.SearchDownloads("", []string{"pending"}, "desc", 10, 0)
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Equal(t, models.StatusPending, results[0].Status)
 
 	// Test search by both filename and status
-	results, err = db.SearchDownloads("music", "pending", 10, 0)
+	results, err = db.SearchDownloads("music", []string{"pending"}, "desc", 10, 0)
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 	require.Equal(t, "music_track.mp3", results[0].Filename)
 
-	// Test search with no results
-	results, err = db.SearchDownloads("nonexistent", "", 10, 0)
+	// Test search with no results (empty status filter)
+	results, err = db.SearchDownloads("movie", []string{}, "desc", 10, 0)
 	require.NoError(t, err)
 	require.Len(t, results, 0)
 
-	// Test pagination
-	results, err = db.SearchDownloads("", "", 2, 0)
+	// Test pagination with all statuses
+	results, err = db.SearchDownloads("", []string{"completed", "pending", "failed"}, "desc", 2, 0)
 	require.NoError(t, err)
 	require.Len(t, results, 2)
 
-	results, err = db.SearchDownloads("", "", 2, 2)
+	results, err = db.SearchDownloads("", []string{"completed", "pending", "failed"}, "desc", 2, 2)
 	require.NoError(t, err)
 	require.Len(t, results, 1)
 }
@@ -730,12 +730,12 @@ func TestDB_SearchDownloadsErrorCases(t *testing.T) {
 	defer db.Close()
 
 	// Test with empty search term and no status filter
-	results, err := db.SearchDownloads("", "", 10, 0)
+	results, err := db.SearchDownloads("", []string{}, "desc", 10, 0)
 	require.NoError(t, err)
 	require.Len(t, results, 0)
 
 	// Test with only status filter
-	results, err = db.SearchDownloads("", "completed", 10, 0)
+	results, err = db.SearchDownloads("", []string{"completed"}, "desc", 10, 0)
 	require.NoError(t, err)
 	require.Len(t, results, 0)
 }
@@ -807,7 +807,7 @@ func TestDB_InvalidDatabaseOperations(t *testing.T) {
 	err = db.UpdateDownload(download)
 	require.Error(t, err)
 
-	_, err = db.SearchDownloads("test", "", 10, 0)
+	_, err = db.SearchDownloads("test", []string{}, "desc", 10, 0)
 	require.Error(t, err)
 
 	err = db.DeleteDownload(1)

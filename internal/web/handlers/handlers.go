@@ -52,13 +52,8 @@ func (h *Handlers) Home(w http.ResponseWriter, r *http.Request) {
 	// Get directory suggestions based on filename
 	suggestedDir, recentDirs := h.getDirectorySuggestions(filename)
 
-	// Get downloads from database
-	downloads, err := h.db.ListDownloads(50, 0)
-	if err != nil {
-		h.logger.Error("Failed to get downloads", "error", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
+	// Start with empty downloads list - user must select statuses to see results
+	var downloads []*models.Download
 
 	component := templates.Base("Debrid Downloader", templates.Home(downloads, suggestedDir, recentDirs))
 	if err := component.Render(r.Context(), w); err != nil {
@@ -929,12 +924,16 @@ func (h *Handlers) SearchDownloads(w http.ResponseWriter, r *http.Request) {
 	}
 
 	searchTerm := r.FormValue("search")
-	statusFilter := r.FormValue("status")
+	statusFilters := r.Form["status"] // Get array of selected statuses
+	sortOrder := r.FormValue("sort")
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
 
 	// Get filtered downloads from database
-	downloads, err := h.db.SearchDownloads(searchTerm, statusFilter, 50, 0)
+	downloads, err := h.db.SearchDownloads(searchTerm, statusFilters, sortOrder, 50, 0)
 	if err != nil {
-		h.logger.Error("Failed to search downloads", "error", err, "search", searchTerm, "status", statusFilter)
+		h.logger.Error("Failed to search downloads", "error", err, "search", searchTerm, "status", statusFilters, "sort", sortOrder)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
