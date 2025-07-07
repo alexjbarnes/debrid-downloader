@@ -362,7 +362,7 @@ func TestHandlers_SubmitDownloadDatabaseError(t *testing.T) {
 }
 
 func TestHandlers_HomeDatabaseError(t *testing.T) {
-	// Use a closed database to trigger database error
+	// Use a closed database to test graceful degradation
 	db, err := database.New(":memory:")
 	require.NoError(t, err)
 	db.Close() // Close immediately to cause errors
@@ -376,8 +376,9 @@ func TestHandlers_HomeDatabaseError(t *testing.T) {
 
 	handlers.Home(w, req)
 
-	// Home page returns 500 on database errors
-	require.Equal(t, http.StatusInternalServerError, w.Code)
+	// Home page gracefully degrades on database errors (returns 200 with base path)
+	require.Equal(t, http.StatusOK, w.Code)
+	require.Contains(t, w.Body.String(), "Debrid Downloader")
 }
 
 func TestHandlers_CurrentDownloadsDatabaseError(t *testing.T) {
@@ -2312,9 +2313,9 @@ func TestHandlers_TemplateRenderErrors(t *testing.T) {
 	worker := downloader.NewWorker(db, "/tmp/test")
 	handlers := NewHandlers(db, client, "/tmp/test", worker)
 
-	// Test Home template render error by breaking the database context
-	t.Run("Home template render error", func(t *testing.T) {
-		// Close database to cause a potential template render issue
+	// Test Home graceful degradation when database is closed
+	t.Run("Home graceful degradation", func(t *testing.T) {
+		// Close database to test graceful degradation
 		db.Close()
 
 		req := httptest.NewRequest("GET", "/", nil)
@@ -2322,8 +2323,10 @@ func TestHandlers_TemplateRenderErrors(t *testing.T) {
 
 		handlers.Home(w, req)
 
-		// Should return internal server error when database is closed
-		require.Equal(t, http.StatusInternalServerError, w.Code)
+		// Should return 200 OK with graceful degradation (using base path for suggestions)
+		require.Equal(t, http.StatusOK, w.Code)
+		// The response should contain the base template structure
+		require.Contains(t, w.Body.String(), "Debrid Downloader")
 	})
 }
 
