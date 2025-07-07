@@ -5,6 +5,7 @@ import (
 )
 
 // DatabaseInterface defines the database operations used by the downloader worker
+//
 //go:generate mockgen -source=interfaces.go -destination=mocks/mock_interfaces.go -package=mocks
 type DatabaseInterface interface {
 	// Download operations

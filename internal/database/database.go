@@ -27,7 +27,7 @@ func New(dbPath string) (*DB, error) {
 	if dbPath != ":memory:" {
 		connString = dbPath + "?_busy_timeout=30000&_journal_mode=WAL&_synchronous=NORMAL"
 	}
-	
+
 	conn, err := sql.Open("sqlite", connString)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database: %w", err)
@@ -36,7 +36,7 @@ func New(dbPath string) (*DB, error) {
 	// Set connection pool settings
 	conn.SetMaxOpenConns(1) // SQLite doesn't handle concurrent writes well
 	conn.SetMaxIdleConns(1)
-	
+
 	db := &DB{conn: conn}
 
 	if err := db.initSchema(); err != nil {
@@ -433,7 +433,7 @@ func (db *DB) SearchDownloads(searchTerm string, statusFilters []string, sortOrd
 			END,
 			created_at DESC, id ASC`
 	}
-	
+
 	query += ` LIMIT ? OFFSET ?`
 	args = append(args, limit, offset)
 

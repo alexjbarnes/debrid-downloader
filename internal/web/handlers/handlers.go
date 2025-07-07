@@ -2,6 +2,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -11,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"debrid-downloader/internal/alldebrid"
@@ -18,6 +20,7 @@ import (
 	"debrid-downloader/internal/downloader"
 	"debrid-downloader/internal/folder"
 	"debrid-downloader/internal/web/templates"
+	"debrid-downloader/pkg/fuzzy"
 	"debrid-downloader/pkg/models"
 	"github.com/google/uuid"
 )
@@ -29,6 +32,8 @@ type Handlers struct {
 	folderService   *folder.Service
 	downloadWorker  *downloader.Worker
 	logger          *slog.Logger
+	urlCache        map[string]*alldebrid.UnrestrictResult // Simple cache for unrestricted URLs
+	cacheMutex      sync.RWMutex                           // Protects urlCache
 }
 
 // NewHandlers creates a new handlers instance
@@ -39,6 +44,7 @@ func NewHandlers(db *database.DB, client alldebrid.AllDebridClient, basePath str
 		folderService:   folder.NewService(basePath),
 		downloadWorker:  worker,
 		logger:          slog.Default(),
+		urlCache:        make(map[string]*alldebrid.UnrestrictResult),
 	}
 }
 
@@ -186,22 +192,39 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 
 	// Process each URL
 	for i, url := range urls {
-		// Unrestrict the URL using AllDebrid
-		result, err := h.allDebridClient.UnrestrictLink(r.Context(), url)
-		if err != nil {
-			h.logger.Error("Failed to unrestrict URL", "error", err, "url", url, "group_id", groupID)
-			// For multi-URL, continue with other URLs; for single URL, return error
-			if len(urls) == 1 {
-				w.WriteHeader(http.StatusBadRequest)
-				component := templates.DownloadResult(false, fmt.Sprintf("Failed to unrestrict URL: %s", err.Error()))
-				if err := component.Render(r.Context(), w); err != nil {
-					h.logger.Error("Failed to render component", "error", err)
-					http.Error(w, "Internal server error", http.StatusInternalServerError)
+		var result *alldebrid.UnrestrictResult
+		var err error
+
+		// Check cache first
+		h.cacheMutex.RLock()
+		if cached, exists := h.urlCache[url]; exists {
+			h.cacheMutex.RUnlock()
+			result = cached
+			h.logger.Debug("Using cached unrestrict result", "url", url, "filename", result.Filename)
+		} else {
+			h.cacheMutex.RUnlock()
+			// Not in cache, unrestrict the URL using AllDebrid
+			result, err = h.allDebridClient.UnrestrictLink(r.Context(), url)
+			if err != nil {
+				h.logger.Error("Failed to unrestrict URL", "error", err, "url", url, "group_id", groupID)
+				// For multi-URL, continue with other URLs; for single URL, return error
+				if len(urls) == 1 {
+					w.WriteHeader(http.StatusBadRequest)
+					component := templates.DownloadResult(false, fmt.Sprintf("Failed to unrestrict URL: %s", err.Error()))
+					if err := component.Render(r.Context(), w); err != nil {
+						h.logger.Error("Failed to render component", "error", err)
+						http.Error(w, "Internal server error", http.StatusInternalServerError)
+						return
+					}
 					return
 				}
-				return
+				continue // Skip this URL but continue with others
 			}
-			continue // Skip this URL but continue with others
+
+			// Cache the result
+			h.cacheMutex.Lock()
+			h.urlCache[url] = result
+			h.cacheMutex.Unlock()
 		}
 
 		// Ensure unique filename by checking for existing files
@@ -256,6 +279,13 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 
 		h.logger.Info("Download submitted", "url", url, "directory", directory, "filename", result.Filename, "download_id", download.ID, "group_id", groupID, "is_archive", isArchive, "position", i+1, "total", len(urls))
 	}
+
+	// Clean up cache for processed URLs to prevent memory growth
+	h.cacheMutex.Lock()
+	for _, url := range urls {
+		delete(h.urlCache, url)
+	}
+	h.cacheMutex.Unlock()
 
 	// Check if any downloads were created
 	if len(downloads) == 0 {
@@ -390,8 +420,8 @@ func (h *Handlers) SubmitDownload(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Also update stats polling trigger
-		statsActiveCount := stats[string(models.StatusPending)] + 
-			stats[string(models.StatusDownloading)] + 
+		statsActiveCount := stats[string(models.StatusPending)] +
+			stats[string(models.StatusDownloading)] +
 			stats[string(models.StatusPaused)]
 		statsPollingComponent := templates.DynamicPollingTrigger("stats-polling-trigger", "/api/stats", "#stats-modal-content", statsActiveCount)
 		if err := statsPollingComponent.Render(r.Context(), w); err != nil {
@@ -1059,8 +1089,8 @@ func (h *Handlers) GetDirectorySuggestion(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	// Get directory suggestion based on URL fuzzy matching
-	suggestedDir := h.getDirectorySuggestionsForURL(url)
+	// Get directory suggestion based on filename from AllDebrid API
+	suggestedDir := h.getDirectorySuggestionsForFilename(r.Context(), url)
 	if _, err := w.Write([]byte(suggestedDir)); err != nil {
 		h.logger.Error("Failed to write response", "error", err)
 	}
@@ -1213,11 +1243,11 @@ func (h *Handlers) DeleteDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Check if this was an active download that needs to trigger queue processing
-	wasActive := download.Status == models.StatusPending || 
-		download.Status == models.StatusDownloading || 
+	wasActive := download.Status == models.StatusPending ||
+		download.Status == models.StatusDownloading ||
 		download.Status == models.StatusPaused
-	
-	h.logger.Info("Checking download status before deletion", 
+
+	h.logger.Info("Checking download status before deletion",
 		"download_id", downloadID,
 		"status", download.Status,
 		"was_active", wasActive)
@@ -1225,10 +1255,10 @@ func (h *Handlers) DeleteDownload(w http.ResponseWriter, r *http.Request) {
 	// If this is the currently downloading item, cancel it first
 	if download.Status == models.StatusDownloading {
 		wasCanceled := h.downloadWorker.CancelCurrentDownloadIfMatches(downloadID)
-		h.logger.Info("Attempted to cancel current download", 
-			"download_id", downloadID, 
+		h.logger.Info("Attempted to cancel current download",
+			"download_id", downloadID,
 			"was_canceled", wasCanceled)
-		
+
 		// Give the worker a moment to process the cancellation
 		if wasCanceled {
 			time.Sleep(100 * time.Millisecond)
@@ -1255,8 +1285,8 @@ func (h *Handlers) DeleteDownload(w http.ResponseWriter, r *http.Request) {
 
 	// If this was an active download, check for and queue next pending download
 	if wasActive {
-		h.logger.Info("Active download was canceled, checking for next pending download", 
-			"canceled_id", downloadID, 
+		h.logger.Info("Active download was canceled, checking for next pending download",
+			"canceled_id", downloadID,
 			"canceled_status", download.Status)
 		// Add a small delay to ensure the worker has finished processing the cancellation
 		time.Sleep(200 * time.Millisecond)
@@ -1323,19 +1353,19 @@ func (h *Handlers) parseMultipleURLs(input string) []string {
 func (h *Handlers) isArchiveFile(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	lowerFilename := strings.ToLower(filename)
-	
+
 	// For RAR files, be more selective about multi-part archives
 	if ext == ".rar" {
 		// If it's a multi-part RAR, only mark the first part as an archive
 		if strings.Contains(lowerFilename, ".part") {
-			return strings.Contains(lowerFilename, ".part1.rar") || 
-				   strings.Contains(lowerFilename, ".part01.rar") || 
-				   strings.Contains(lowerFilename, ".part001.rar")
+			return strings.Contains(lowerFilename, ".part1.rar") ||
+				strings.Contains(lowerFilename, ".part01.rar") ||
+				strings.Contains(lowerFilename, ".part001.rar")
 		}
 		// Single RAR files are archives
 		return true
 	}
-	
+
 	// Other archive formats
 	archiveExts := []string{".zip", ".7z", ".tar", ".gz", ".bz2", ".xz"}
 	for _, archiveExt := range archiveExts {
@@ -1448,10 +1478,69 @@ func (h *Handlers) getSmartDirectorySuggestion(url, basePath string) string {
 	return basePath
 }
 
+// getDirectorySuggestionsFromFilename gets directory suggestions using a pre-fetched filename
+func (h *Handlers) getDirectorySuggestionsFromFilename(filename string) string {
+	// Get directory mappings from database
+	mappings, err := h.db.GetDirectoryMappings()
+	if err != nil {
+		h.logger.Error("Failed to get directory mappings", "error", err)
+		return h.folderService.BasePath
+	}
+
+	// Use fuzzy matcher to suggest directory based on filename
+	matcher := fuzzy.NewMatcher()
+	suggestedDir := matcher.SuggestDirectory(filename, mappings)
+
+	// If no suggestion from fuzzy matcher, return base path
+	if suggestedDir == "" {
+		return h.folderService.BasePath
+	}
+
+	return suggestedDir
+}
+
+// getDirectorySuggestionsForFilename gets directory suggestions by first fetching filename from AllDebrid API
+func (h *Handlers) getDirectorySuggestionsForFilename(ctx context.Context, url string) string {
+	// Check cache first
+	h.cacheMutex.RLock()
+	if cached, exists := h.urlCache[url]; exists {
+		h.cacheMutex.RUnlock()
+		// Use cached result
+		if cached.Filename != "" {
+			return h.getDirectorySuggestionsFromFilename(cached.Filename)
+		}
+		return h.getDirectorySuggestionsForURL(url)
+	}
+	h.cacheMutex.RUnlock()
+
+	// Not in cache, unrestrict the URL using AllDebrid API
+	result, err := h.allDebridClient.UnrestrictLink(ctx, url)
+	if err != nil {
+		h.logger.Debug("Failed to unrestrict link for filename suggestion", "error", err, "url", url)
+		// Fall back to URL-based suggestions if API call fails
+		return h.getDirectorySuggestionsForURL(url)
+	}
+
+	// Cache the result for later use
+	h.cacheMutex.Lock()
+	h.urlCache[url] = result
+	h.cacheMutex.Unlock()
+
+	// Use the filename from AllDebrid for fuzzy matching
+	filename := result.Filename
+	if filename == "" {
+		// Fall back to URL-based suggestions if no filename
+		return h.getDirectorySuggestionsForURL(url)
+	}
+
+	// Use the new helper function that doesn't require unrestriction
+	return h.getDirectorySuggestionsFromFilename(filename)
+}
+
 // queueNextPendingDownload checks for pending downloads and queues the next one
 func (h *Handlers) queueNextPendingDownload() {
 	h.logger.Debug("Checking for next pending download to queue")
-	
+
 	// Get pending downloads ordered by creation time (oldest first)
 	pendingDownloads, err := h.db.GetPendingDownloadsOldestFirst()
 	if err != nil {
@@ -1465,8 +1554,8 @@ func (h *Handlers) queueNextPendingDownload() {
 	if len(pendingDownloads) > 0 {
 		download := pendingDownloads[0]
 		h.downloadWorker.QueueDownload(download.ID)
-		h.logger.Info("Queued next pending download", 
-			"download_id", download.ID, 
+		h.logger.Info("Queued next pending download",
+			"download_id", download.ID,
 			"filename", download.Filename,
 			"created_at", download.CreatedAt)
 	} else {
@@ -1487,8 +1576,8 @@ func (h *Handlers) GetDownloadStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Count active downloads for polling logic
-	activeCount := stats[string(models.StatusPending)] + 
-		stats[string(models.StatusDownloading)] + 
+	activeCount := stats[string(models.StatusPending)] +
+		stats[string(models.StatusDownloading)] +
 		stats[string(models.StatusPaused)]
 
 	// Return just the modal content for out-of-band updates

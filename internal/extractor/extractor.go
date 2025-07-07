@@ -56,12 +56,12 @@ func (s *Service) Extract(archivePath, destPath string) ([]string, error) {
 func (s *Service) IsArchive(filename string) bool {
 	ext := strings.ToLower(filepath.Ext(filename))
 	lowerFilename := strings.ToLower(filename)
-	
+
 	// Check for ZIP files
 	if ext == ".zip" {
 		return true
 	}
-	
+
 	// Check for RAR files - only first part or single RAR
 	if ext == ".rar" {
 		// Skip if it's a part file that's not the first part
@@ -99,7 +99,7 @@ func (s *Service) extractZip(archivePath, destPath string) ([]string, error) {
 
 		// Get just the filename without any path
 		filename := filepath.Base(file.Name)
-		
+
 		// Validate filename to prevent directory traversal
 		if strings.Contains(filename, "..") || strings.ContainsRune(filename, os.PathSeparator) {
 			s.logger.Warn("Skipping file with potentially dangerous name", "file", file.Name)
@@ -153,7 +153,7 @@ func (s *Service) extractRar(archivePath, destPath string) ([]string, error) {
 	dir := filepath.Dir(archivePath)
 	base := filepath.Base(archivePath)
 	isMultipart := strings.Contains(strings.ToLower(base), ".part")
-	
+
 	if isMultipart {
 		s.logger.Info("Detected multi-part RAR archive", "file", base)
 		// Log what RAR files exist in the directory
@@ -203,7 +203,7 @@ func (s *Service) extractRar(archivePath, destPath string) ([]string, error) {
 
 		// Get just the filename without any path
 		filename := filepath.Base(header.Name)
-		
+
 		// Validate filename to prevent directory traversal
 		if strings.Contains(filename, "..") || strings.ContainsRune(filename, os.PathSeparator) {
 			s.logger.Warn("Skipping file with potentially dangerous name", "file", header.Name)

@@ -195,13 +195,13 @@ func resetOrphanedDownloads(db *database.DB) error {
 		tempPath := filepath.Join(download.Directory, tempFilename)
 		if _, err := os.Stat(tempPath); err == nil {
 			if removeErr := os.Remove(tempPath); removeErr != nil {
-				slog.Warn("Failed to clean up orphaned temporary file", 
-					"temp_path", tempPath, 
-					"download_id", download.ID, 
+				slog.Warn("Failed to clean up orphaned temporary file",
+					"temp_path", tempPath,
+					"download_id", download.ID,
 					"error", removeErr)
 			} else {
-				slog.Info("Cleaned up orphaned temporary file", 
-					"temp_path", tempPath, 
+				slog.Info("Cleaned up orphaned temporary file",
+					"temp_path", tempPath,
 					"download_id", download.ID)
 			}
 		}
@@ -216,14 +216,14 @@ func resetOrphanedDownloads(db *database.DB) error {
 		download.StartedAt = nil
 
 		if err := db.UpdateDownload(download); err != nil {
-			slog.Error("Failed to reset orphaned download", 
-				"download_id", download.ID, 
+			slog.Error("Failed to reset orphaned download",
+				"download_id", download.ID,
 				"error", err)
 			continue
 		}
 
-		slog.Info("Reset orphaned download to pending state", 
-			"download_id", download.ID, 
+		slog.Info("Reset orphaned download to pending state",
+			"download_id", download.ID,
 			"filename", download.Filename)
 	}
 
@@ -244,8 +244,8 @@ func queuePendingDownloads(db *database.DB, worker *downloader.Worker) error {
 
 	for _, download := range pendingDownloads {
 		worker.QueueDownload(download.ID)
-		slog.Info("Queued pending download from previous session", 
-			"download_id", download.ID, 
+		slog.Info("Queued pending download from previous session",
+			"download_id", download.ID,
 			"filename", download.Filename,
 			"created_at", download.CreatedAt)
 	}

@@ -124,7 +124,7 @@ func TestService_ExtractUnsupportedFile(t *testing.T) {
 
 	// Create a non-archive file
 	textFile := filepath.Join(tempDir, "test.txt")
-	err = os.WriteFile(textFile, []byte("not an archive"), 0644)
+	err = os.WriteFile(textFile, []byte("not an archive"), 0o644)
 	require.NoError(t, err)
 
 	// Try to extract non-archive file
@@ -187,7 +187,7 @@ func TestService_ExtractZipInvalidFile(t *testing.T) {
 
 	// Create an invalid ZIP file
 	invalidZip := filepath.Join(tempDir, "invalid.zip")
-	err = os.WriteFile(invalidZip, []byte("not a zip file"), 0644)
+	err = os.WriteFile(invalidZip, []byte("not a zip file"), 0o644)
 	require.NoError(t, err)
 
 	// Try to extract invalid ZIP
@@ -230,7 +230,7 @@ func TestService_ExtractZipWithInvalidPath(t *testing.T) {
 	// Extract ZIP file - should handle dangerous paths safely
 	extractDir := filepath.Join(tempDir, "extracted")
 	files, err := service.Extract(zipPath, extractDir)
-	
+
 	// Should either succeed (with sanitized paths) or fail safely
 	if err != nil {
 		require.Contains(t, err.Error(), "unsafe")
@@ -253,7 +253,7 @@ func TestService_ExtractUnsupportedExtension(t *testing.T) {
 	// Create a file with unsupported extension but pass IsArchive check
 	// This tests the default case in the switch statement
 	unsupportedFile := filepath.Join(tempDir, "test.tar")
-	err = os.WriteFile(unsupportedFile, []byte("tar content"), 0644)
+	err = os.WriteFile(unsupportedFile, []byte("tar content"), 0o644)
 	require.NoError(t, err)
 
 	// Mock IsArchive to return true for this test
@@ -430,7 +430,7 @@ func TestService_ExtractRarFile(t *testing.T) {
 	filePath := filepath.Join(tempDir, "test.txt")
 
 	// Test extracting RAR file content
-	err = service.extractRarFile(reader, filePath, 0644)
+	err = service.extractRarFile(reader, filePath, 0o644)
 	require.NoError(t, err)
 
 	// Check file was created
@@ -452,7 +452,7 @@ func TestService_ExtractRarFileInvalidPath(t *testing.T) {
 	// Try to extract to invalid path (directory that doesn't exist)
 	invalidPath := "/invalid/nonexistent/path/file.txt"
 
-	err := service.extractRarFile(reader, invalidPath, 0644)
+	err := service.extractRarFile(reader, invalidPath, 0o644)
 	require.Error(t, err)
 }
 
@@ -504,7 +504,7 @@ func TestService_ExtractRarPasswordProtected(t *testing.T) {
 
 	// Create a fake RAR file that will trigger password error
 	rarPath := filepath.Join(tempDir, "password.rar")
-	err = os.WriteFile(rarPath, []byte("Rar!"), 0644)
+	err = os.WriteFile(rarPath, []byte("Rar!"), 0o644)
 	require.NoError(t, err)
 
 	// Try to extract password-protected RAR (will fail with rardecode error)
@@ -529,10 +529,10 @@ func TestService_ExtractZipWithDangerousFilenames(t *testing.T) {
 	// Extract ZIP - should skip dangerous files
 	extractDir := filepath.Join(tempDir, "extracted")
 	files, err := service.Extract(zipPath, extractDir)
-	
+
 	// Should succeed but skip dangerous files
 	require.NoError(t, err)
-	
+
 	// Check that only safe files were extracted
 	for _, file := range files {
 		require.True(t, filepath.HasPrefix(file, extractDir))
@@ -550,7 +550,7 @@ func TestService_ExtractUnsupportedArchiveType(t *testing.T) {
 
 	// Create file with .rar extension but not actually a RAR
 	fakeRar := filepath.Join(tempDir, "fake.rar")
-	err = os.WriteFile(fakeRar, []byte("not a rar file"), 0644)
+	err = os.WriteFile(fakeRar, []byte("not a rar file"), 0o644)
 	require.NoError(t, err)
 
 	// Try to extract unsupported file type
@@ -601,7 +601,7 @@ func TestService_ExtractZipErrorCases(t *testing.T) {
 
 	t.Run("zip file open error", func(t *testing.T) {
 		tempDir := t.TempDir()
-		
+
 		// Try to extract non-existent file
 		files, err := service.extractZip("/nonexistent/file.zip", tempDir)
 		require.Error(t, err)
@@ -613,18 +613,18 @@ func TestService_ExtractZipErrorCases(t *testing.T) {
 		// Create a valid ZIP file
 		tempDir := t.TempDir()
 		zipPath := filepath.Join(tempDir, "test.zip")
-		
+
 		// Create a simple ZIP file
 		file, err := os.Create(zipPath)
 		require.NoError(t, err)
-		
+
 		zipWriter := zip.NewWriter(file)
 		fileWriter, err := zipWriter.Create("test.txt")
 		require.NoError(t, err)
-		
+
 		_, err = fileWriter.Write([]byte("test content"))
 		require.NoError(t, err)
-		
+
 		err = zipWriter.Close()
 		require.NoError(t, err)
 		err = file.Close()
@@ -632,7 +632,7 @@ func TestService_ExtractZipErrorCases(t *testing.T) {
 
 		// Try to extract to invalid destination (file instead of directory)
 		invalidDest := filepath.Join(tempDir, "file_not_dir")
-		err = os.WriteFile(invalidDest, []byte("blocking file"), 0644)
+		err = os.WriteFile(invalidDest, []byte("blocking file"), 0o644)
 		require.NoError(t, err)
 
 		files, err := service.extractZip(zipPath, invalidDest)
@@ -644,23 +644,23 @@ func TestService_ExtractZipErrorCases(t *testing.T) {
 		tempDir := t.TempDir()
 		zipPath := filepath.Join(tempDir, "dirs.zip")
 		destDir := filepath.Join(tempDir, "extracted")
-		
+
 		// Create ZIP with directory entries
 		file, err := os.Create(zipPath)
 		require.NoError(t, err)
-		
+
 		zipWriter := zip.NewWriter(file)
-		
+
 		// Add a directory entry
 		_, err = zipWriter.Create("subdir/")
 		require.NoError(t, err)
-		
+
 		// Add a file in the directory
 		fileWriter, err := zipWriter.Create("subdir/file.txt")
 		require.NoError(t, err)
 		_, err = fileWriter.Write([]byte("file in subdir"))
 		require.NoError(t, err)
-		
+
 		err = zipWriter.Close()
 		require.NoError(t, err)
 		err = file.Close()
@@ -682,13 +682,13 @@ func TestService_ExtractZipFileErrors(t *testing.T) {
 		// Create ZIP entry with dangerous path
 		var buf bytes.Buffer
 		zipWriter := zip.NewWriter(&buf)
-		
+
 		// This will be caught by the path validation
 		fileWriter, err := zipWriter.Create("../../../etc/passwd")
 		require.NoError(t, err)
 		_, err = fileWriter.Write([]byte("dangerous content"))
 		require.NoError(t, err)
-		
+
 		err = zipWriter.Close()
 		require.NoError(t, err)
 
@@ -707,12 +707,12 @@ func TestService_ExtractZipFileErrors(t *testing.T) {
 		// Create a ZIP with content
 		var buf bytes.Buffer
 		zipWriter := zip.NewWriter(&buf)
-		
+
 		fileWriter, err := zipWriter.Create("test.txt")
 		require.NoError(t, err)
 		_, err = fileWriter.Write([]byte("test content"))
 		require.NoError(t, err)
-		
+
 		err = zipWriter.Close()
 		require.NoError(t, err)
 
@@ -721,7 +721,7 @@ func TestService_ExtractZipFileErrors(t *testing.T) {
 
 		// Try to extract to a read-only directory
 		readOnlyDir := filepath.Join(tempDir, "readonly")
-		err = os.MkdirAll(readOnlyDir, 0444) // Read-only
+		err = os.MkdirAll(readOnlyDir, 0o444) // Read-only
 		require.NoError(t, err)
 
 		destPath := filepath.Join(readOnlyDir, "test.txt")
@@ -737,10 +737,10 @@ func TestService_ExtractRarErrorPaths(t *testing.T) {
 
 	t.Run("rar archive read error", func(t *testing.T) {
 		tempDir := t.TempDir()
-		
+
 		// Create invalid RAR file
 		rarPath := filepath.Join(tempDir, "invalid.rar")
-		err := os.WriteFile(rarPath, []byte("not a rar file"), 0644)
+		err := os.WriteFile(rarPath, []byte("not a rar file"), 0o644)
 		require.NoError(t, err)
 
 		files, err := service.extractRar(rarPath, tempDir)
@@ -751,15 +751,15 @@ func TestService_ExtractRarErrorPaths(t *testing.T) {
 
 	t.Run("destination creation error", func(t *testing.T) {
 		tempDir := t.TempDir()
-		
+
 		// Create minimal RAR structure (will fail but test the path)
 		rarPath := filepath.Join(tempDir, "test.rar")
-		err := os.WriteFile(rarPath, []byte("Rar!\x1a\x07\x00"), 0644)
+		err := os.WriteFile(rarPath, []byte("Rar!\x1a\x07\x00"), 0o644)
 		require.NoError(t, err)
 
 		// Try to extract to invalid destination
 		invalidDest := filepath.Join(tempDir, "file_not_dir")
-		err = os.WriteFile(invalidDest, []byte("blocking"), 0644)
+		err = os.WriteFile(invalidDest, []byte("blocking"), 0o644)
 		require.NoError(t, err)
 
 		files, err := service.extractRar(rarPath, invalidDest)
@@ -770,17 +770,17 @@ func TestService_ExtractRarErrorPaths(t *testing.T) {
 
 	t.Run("multipart rar file listing error", func(t *testing.T) {
 		tempDir := t.TempDir()
-		
+
 		// Create RAR file with multipart naming
 		rarPath := filepath.Join(tempDir, "test.part1.rar")
-		err := os.WriteFile(rarPath, []byte("Rar!\x1a\x07\x00"), 0644)
+		err := os.WriteFile(rarPath, []byte("Rar!\x1a\x07\x00"), 0o644)
 		require.NoError(t, err)
 
 		// Make directory unreadable to cause listing error
-		err = os.Chmod(tempDir, 0000)
+		err = os.Chmod(tempDir, 0o000)
 		if err == nil { // Only proceed if chmod worked
-			defer os.Chmod(tempDir, 0755) // Restore permissions
-			
+			defer os.Chmod(tempDir, 0o755) // Restore permissions
+
 			files, err := service.extractRar(rarPath, tempDir)
 			// Should handle the directory read error gracefully
 			_ = files
@@ -797,7 +797,7 @@ func TestService_PathSanitizationEdgeCases(t *testing.T) {
 	// Create ZIP with various dangerous paths
 	var buf bytes.Buffer
 	zipWriter := zip.NewWriter(&buf)
-	
+
 	// Add files with different dangerous patterns
 	dangerousPaths := []string{
 		"../outside.txt",
@@ -806,11 +806,11 @@ func TestService_PathSanitizationEdgeCases(t *testing.T) {
 		"normal/../../outside.txt",
 		"C:\\Windows\\System32\\bad.exe", // Windows absolute path
 		"/etc/shadow",                    // Unix absolute path
-		"",                              // Empty path
-		".",                             // Current directory
-		"..",                            // Parent directory
-		"con.txt",                       // Windows reserved name
-		"file\x00null.txt",              // Null byte
+		"",                               // Empty path
+		".",                              // Current directory
+		"..",                             // Parent directory
+		"con.txt",                        // Windows reserved name
+		"file\x00null.txt",               // Null byte
 	}
 
 	for i, path := range dangerousPaths {
@@ -826,25 +826,25 @@ func TestService_PathSanitizationEdgeCases(t *testing.T) {
 			continue
 		}
 	}
-	
+
 	err := zipWriter.Close()
 	require.NoError(t, err)
 
 	// Extract the ZIP
 	zipPath := filepath.Join(tempDir, "dangerous.zip")
-	err = os.WriteFile(zipPath, buf.Bytes(), 0644)
+	err = os.WriteFile(zipPath, buf.Bytes(), 0o644)
 	require.NoError(t, err)
 
 	extractDir := filepath.Join(tempDir, "extracted")
 	files, err := service.extractZip(zipPath, extractDir)
-	
+
 	// Should succeed with sanitized paths
 	require.NoError(t, err)
 	require.NotEmpty(t, files)
-	
+
 	// Verify all extracted files are within the destination directory
 	for _, file := range files {
-		require.True(t, strings.HasPrefix(file, extractDir), 
+		require.True(t, strings.HasPrefix(file, extractDir),
 			"Extracted file %s should be within %s", file, extractDir)
 	}
 }
@@ -871,7 +871,7 @@ func TestService_ExtractRarFileCopyError(t *testing.T) {
 	reader := &errorReader{err: io.ErrUnexpectedEOF}
 	destPath := filepath.Join(tempDir, "test.txt")
 
-	err = service.extractRarFile(reader, destPath, 0644)
+	err = service.extractRarFile(reader, destPath, 0o644)
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "failed to copy file contents")
 }
@@ -893,8 +893,8 @@ func TestService_ExtractMinimalRar(t *testing.T) {
 	// Extract the minimal RAR file - this will exercise the RAR parsing code
 	extractDir := filepath.Join(tempDir, "extracted")
 	files, err := service.Extract(rarPath, extractDir)
-	
-	// The minimal RAR will likely fail to extract due to CRC issues, 
+
+	// The minimal RAR will likely fail to extract due to CRC issues,
 	// but it exercises the RAR parsing code paths which is what we want
 	if err != nil {
 		// Expected for minimal RAR with bad CRC, but we've exercised the parsing code
@@ -908,120 +908,120 @@ func TestService_ExtractMinimalRar(t *testing.T) {
 // Helper function to create minimal valid RAR file
 func createMinimalRarFile(rarPath string) error {
 	var buf bytes.Buffer
-	
+
 	// RAR file signature
 	signature := []byte("Rar!\x1a\x07\x00")
 	buf.Write(signature)
-	
+
 	// Main archive header (simplified)
 	mainHeader := createRarMainHeader()
 	buf.Write(mainHeader)
-	
+
 	// File header (simplified)
 	fileHeader := createRarFileHeader("test.txt", "Hello RAR!")
 	buf.Write(fileHeader)
-	
+
 	// Compressed data (store method - no compression)
 	data := []byte("Hello RAR!")
 	buf.Write(data)
-	
+
 	// End of archive marker
 	endMarker := createRarEndMarker()
 	buf.Write(endMarker)
-	
-	return os.WriteFile(rarPath, buf.Bytes(), 0644)
+
+	return os.WriteFile(rarPath, buf.Bytes(), 0o644)
 }
 
 // Create RAR main header
 func createRarMainHeader() []byte {
 	var buf bytes.Buffer
-	
+
 	// Header CRC (placeholder)
 	binary.Write(&buf, binary.LittleEndian, uint16(0x1234))
-	
+
 	// Header type (main header = 0x73)
 	buf.WriteByte(0x73)
-	
+
 	// Header flags
 	binary.Write(&buf, binary.LittleEndian, uint16(0x0000))
-	
+
 	// Header size
 	binary.Write(&buf, binary.LittleEndian, uint16(13))
-	
+
 	// Archive flags
 	binary.Write(&buf, binary.LittleEndian, uint16(0x0000))
-	
+
 	// Reserved fields
 	binary.Write(&buf, binary.LittleEndian, uint16(0x0000))
-	
+
 	return buf.Bytes()
 }
 
 // Create RAR file header
 func createRarFileHeader(filename, content string) []byte {
 	var buf bytes.Buffer
-	
+
 	// Header CRC (placeholder)
 	binary.Write(&buf, binary.LittleEndian, uint16(0x5678))
-	
+
 	// Header type (file header = 0x74)
 	buf.WriteByte(0x74)
-	
+
 	// Header flags
 	binary.Write(&buf, binary.LittleEndian, uint16(0x8000)) // Long block flag
-	
+
 	// Header size
 	headerSize := uint16(32 + len(filename))
 	binary.Write(&buf, binary.LittleEndian, headerSize)
-	
+
 	// Packed size
 	binary.Write(&buf, binary.LittleEndian, uint32(len(content)))
-	
+
 	// Unpacked size
 	binary.Write(&buf, binary.LittleEndian, uint32(len(content)))
-	
+
 	// Host OS
 	buf.WriteByte(0x02) // Windows
-	
+
 	// File CRC
 	binary.Write(&buf, binary.LittleEndian, uint32(0x12345678))
-	
+
 	// File time
 	binary.Write(&buf, binary.LittleEndian, uint32(time.Now().Unix()))
-	
+
 	// RAR version
 	buf.WriteByte(0x14) // Version 2.0
-	
+
 	// Compression method
 	buf.WriteByte(0x30) // Store (no compression)
-	
+
 	// Filename length
 	binary.Write(&buf, binary.LittleEndian, uint16(len(filename)))
-	
+
 	// File attributes
 	binary.Write(&buf, binary.LittleEndian, uint32(0x20)) // Archive bit
-	
+
 	// Filename
 	buf.WriteString(filename)
-	
+
 	return buf.Bytes()
 }
 
 // Create RAR end marker
 func createRarEndMarker() []byte {
 	var buf bytes.Buffer
-	
+
 	// Header CRC
 	binary.Write(&buf, binary.LittleEndian, uint16(0x3DC4))
-	
+
 	// Header type (end of archive = 0x7B)
 	buf.WriteByte(0x7B)
-	
+
 	// Header flags
 	binary.Write(&buf, binary.LittleEndian, uint16(0x4000))
-	
+
 	// Header size
 	binary.Write(&buf, binary.LittleEndian, uint16(7))
-	
+
 	return buf.Bytes()
 }

@@ -27,7 +27,7 @@ func TestDownloadGroupStatus_Constants(t *testing.T) {
 
 func TestDownload_Struct(t *testing.T) {
 	now := time.Now()
-	
+
 	download := &Download{
 		ID:              1,
 		OriginalURL:     "https://example.com/file.zip",
@@ -124,7 +124,7 @@ func TestDownload_JSONSerialization(t *testing.T) {
 
 func TestDirectoryMapping_Struct(t *testing.T) {
 	now := time.Now()
-	
+
 	mapping := &DirectoryMapping{
 		ID:              1,
 		FilenamePattern: "*.zip",
@@ -177,7 +177,7 @@ func TestDirectoryMapping_JSONSerialization(t *testing.T) {
 
 func TestDownloadGroup_Struct(t *testing.T) {
 	now := time.Now()
-	
+
 	group := &DownloadGroup{
 		ID:                 "group-123",
 		CreatedAt:          now,
@@ -227,7 +227,7 @@ func TestDownloadGroup_JSONSerialization(t *testing.T) {
 
 func TestExtractedFile_Struct(t *testing.T) {
 	now := time.Now()
-	
+
 	file := &ExtractedFile{
 		ID:         1,
 		DownloadID: 123,

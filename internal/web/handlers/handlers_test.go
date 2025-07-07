@@ -981,8 +981,8 @@ func TestMultipleURLParsing(t *testing.T) {
 			},
 		},
 		{
-			name:     "mixed with non-URLs",
-			input:    "https://example.com/file1.zip not-a-url https://example.com/file2.zip",
+			name:  "mixed with non-URLs",
+			input: "https://example.com/file1.zip not-a-url https://example.com/file2.zip",
 			expected: []string{
 				"https://example.com/file1.zip",
 				"https://example.com/file2.zip",
@@ -1242,7 +1242,7 @@ func TestSubmitDownloadWithMultipleURLs(t *testing.T) {
 	downloads, err := db.ListDownloads(10, 0)
 	require.NoError(t, err)
 	require.Len(t, downloads, 2)
-	
+
 	// Downloads might be in any order, so check that both URLs exist
 	urls := []string{downloads[0].OriginalURL, downloads[1].OriginalURL}
 	require.Contains(t, urls, "https://example.com/file1.zip")
@@ -1749,7 +1749,7 @@ func TestUpdateDownloadError(t *testing.T) {
 	worker := downloader.NewWorker(db, "/tmp/test")
 	handlers := NewHandlers(db, client, "/tmp/test", worker)
 
-	// Close database to cause update to fail  
+	// Close database to cause update to fail
 	db.Close()
 
 	req := httptest.NewRequest("POST", "/downloads/1/retry", nil)
@@ -1835,7 +1835,7 @@ func TestHandlers_PauseDownload(t *testing.T) {
 		// Need to simulate that there's a current download to pause
 		// First queue the download to make it "current"
 		worker.QueueDownload(downloadID)
-		
+
 		req := httptest.NewRequest("POST", fmt.Sprintf("/downloads/%d/pause", downloadID), nil)
 		req.SetPathValue("id", fmt.Sprintf("%d", downloadID))
 		w := httptest.NewRecorder()
@@ -1846,14 +1846,14 @@ func TestHandlers_PauseDownload(t *testing.T) {
 		// The test is mainly about covering code paths, not functionality
 		require.NotEqual(t, http.StatusBadRequest, w.Code)
 	})
-	
+
 	t.Run("database error after pause", func(t *testing.T) {
 		// Close the database to force an error
 		db.Close()
-		
+
 		// Create new handlers with closed DB
 		handlers2 := NewHandlers(db, client, "/tmp/test", worker)
-		
+
 		req := httptest.NewRequest("POST", "/downloads/123/pause", nil)
 		req.SetPathValue("id", "123")
 		w := httptest.NewRecorder()
@@ -1984,7 +1984,7 @@ func TestHandlers_EnsureUniqueFilename(t *testing.T) {
 	t.Run("file exists - generates unique name", func(t *testing.T) {
 		// Create an existing file
 		existingFile := filepath.Join(tempDir, "existing.txt")
-		err := os.WriteFile(existingFile, []byte("content"), 0644)
+		err := os.WriteFile(existingFile, []byte("content"), 0o644)
 		require.NoError(t, err)
 
 		filename := handlers.ensureUniqueFilename("existing.txt", tempDir)
@@ -1994,13 +1994,13 @@ func TestHandlers_EnsureUniqueFilename(t *testing.T) {
 	t.Run("multiple files exist", func(t *testing.T) {
 		// Create the original file first
 		originalFile := filepath.Join(tempDir, "multiple.txt")
-		err := os.WriteFile(originalFile, []byte("content"), 0644)
+		err := os.WriteFile(originalFile, []byte("content"), 0o644)
 		require.NoError(t, err)
 
 		// Create multiple existing files
 		for i := 1; i <= 3; i++ {
 			existingFile := filepath.Join(tempDir, fmt.Sprintf("multiple(%d).txt", i))
-			err := os.WriteFile(existingFile, []byte("content"), 0644)
+			err := os.WriteFile(existingFile, []byte("content"), 0o644)
 			require.NoError(t, err)
 		}
 
@@ -2011,7 +2011,7 @@ func TestHandlers_EnsureUniqueFilename(t *testing.T) {
 	t.Run("file without extension", func(t *testing.T) {
 		// Create an existing file without extension
 		existingFile := filepath.Join(tempDir, "noext")
-		err := os.WriteFile(existingFile, []byte("content"), 0644)
+		err := os.WriteFile(existingFile, []byte("content"), 0o644)
 		require.NoError(t, err)
 
 		filename := handlers.ensureUniqueFilename("noext", tempDir)
@@ -2117,7 +2117,7 @@ func TestHandlers_SubmitDownloadAdditionalCoverage(t *testing.T) {
 		form := url.Values{}
 		form.Add("url", "https://example.com/test2.zip")
 		form.Add("directory", "/invalid\x00path") // Invalid path with null byte
-		
+
 		req := httptest.NewRequest("POST", "/download", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
@@ -2132,7 +2132,7 @@ func TestHandlers_SubmitDownloadAdditionalCoverage(t *testing.T) {
 		// Create a temp directory and file to test unique filename generation
 		tempDir := t.TempDir()
 		existingFile := filepath.Join(tempDir, "existing.zip")
-		err := os.WriteFile(existingFile, []byte("content"), 0644)
+		err := os.WriteFile(existingFile, []byte("content"), 0o644)
 		require.NoError(t, err)
 
 		// Create handlers with the temp directory
@@ -2148,7 +2148,7 @@ func TestHandlers_SubmitDownloadAdditionalCoverage(t *testing.T) {
 		form := url.Values{}
 		form.Add("url", "https://example.com/existing.zip")
 		form.Add("directory", tempDir)
-		
+
 		req := httptest.NewRequest("POST", "/download", strings.NewReader(form.Encode()))
 		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 		w := httptest.NewRecorder()
@@ -2172,7 +2172,7 @@ func TestHandlers_CreateFolderEdgeCases(t *testing.T) {
 	t.Run("create subfolder in existing directory", func(t *testing.T) {
 		// Use the handlers' base path for consistency
 		folderName := fmt.Sprintf("test-folder-%d", time.Now().UnixNano())
-		
+
 		reqBody := fmt.Sprintf(`{"name": "%s", "path": "/tmp/test"}`, folderName)
 
 		req := httptest.NewRequest("POST", "/folders/create", strings.NewReader(reqBody))
@@ -2316,7 +2316,7 @@ func TestHandlers_TemplateRenderErrors(t *testing.T) {
 	t.Run("Home template render error", func(t *testing.T) {
 		// Close database to cause a potential template render issue
 		db.Close()
-		
+
 		req := httptest.NewRequest("GET", "/", nil)
 		w := httptest.NewRecorder()
 
@@ -2340,7 +2340,7 @@ func TestHandlers_AdditionalErrorCases(t *testing.T) {
 	t.Run("CurrentDownloads template render error", func(t *testing.T) {
 		// Close database to trigger template context issues
 		db.Close()
-		
+
 		req := httptest.NewRequest("GET", "/downloads/current", nil)
 		w := httptest.NewRecorder()
 
@@ -2394,7 +2394,7 @@ func TestHandlers_AdditionalPathCoverage(t *testing.T) {
 	t.Run("ensureUniqueFilename with many conflicts", func(t *testing.T) {
 		// Create a temp directory
 		tempDir := t.TempDir()
-		
+
 		// Create many conflicting files to test the loop
 		baseFile := "conflict.txt"
 		for i := 0; i < 10; i++ {
@@ -2404,7 +2404,7 @@ func TestHandlers_AdditionalPathCoverage(t *testing.T) {
 			} else {
 				filename = fmt.Sprintf("conflict(%d).txt", i)
 			}
-			err := os.WriteFile(filepath.Join(tempDir, filename), []byte("content"), 0644)
+			err := os.WriteFile(filepath.Join(tempDir, filename), []byte("content"), 0o644)
 			require.NoError(t, err)
 		}
 
@@ -2421,8 +2421,8 @@ func TestHandlers_AdditionalPathCoverage(t *testing.T) {
 			{"file.part01.rar", true},
 			{"file.part1.rar", true},
 			{"file.part001.rar", true},
-			{"file.part2.rar", false},  // Not first part
-			{"file.part02.rar", false}, // Not first part
+			{"file.part2.rar", false},   // Not first part
+			{"file.part02.rar", false},  // Not first part
 			{"file.part002.rar", false}, // Not first part
 		}
 

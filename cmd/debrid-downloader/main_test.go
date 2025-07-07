@@ -243,11 +243,11 @@ func TestRunWithAPIKeyValidation(t *testing.T) {
 	defer db.Close()
 
 	client := alldebrid.New(cfg.AllDebridAPIKey)
-	
+
 	// Test API key validation (will fail with invalid key)
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	
+
 	err = client.CheckAPIKey(ctx)
 	// Should get an error with invalid key
 	require.Error(t, err)
@@ -261,7 +261,7 @@ func TestRunServerComponents(t *testing.T) {
 
 	client := alldebrid.New("test-key")
 	worker := downloader.NewWorker(db, "/tmp/test")
-	
+
 	// Use client to avoid unused variable error
 	require.NotNil(t, client)
 
@@ -273,7 +273,7 @@ func TestRunServerComponents(t *testing.T) {
 	// Test that we can start worker (won't actually download anything)
 	go worker.Start(ctx)
 
-	// Test cleanup function 
+	// Test cleanup function
 	go startHistoryCleanup(ctx, db)
 
 	// Let components run briefly
@@ -348,7 +348,7 @@ func TestSetupLoggingWithAllOptions(t *testing.T) {
 	}{
 		{"debug", "debug", "debug"},
 		{"info", "info", "info"},
-		{"warn", "warn", "warn"}, 
+		{"warn", "warn", "warn"},
 		{"error", "error", "error"},
 		{"unknown", "unknown", "info"}, // defaults to info
 		{"empty", "", "info"},          // defaults to info
@@ -501,18 +501,18 @@ func TestAPIKeyValidationSuccess(t *testing.T) {
 	// Test successful API key validation path
 	// Note: This test uses a mock scenario since we can't test with real API
 	client := alldebrid.New("test-key")
-	
+
 	// Test that client is created properly
 	require.NotNil(t, client)
-	
+
 	// Test context creation for API validation
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	
+
 	// In real scenario, this would validate the API key
 	// Here we just test that the context and client are set up correctly
 	require.NotNil(t, ctx)
-	
+
 	deadline, ok := ctx.Deadline()
 	require.True(t, ok)
 	require.True(t, deadline.After(time.Now()))
@@ -520,16 +520,16 @@ func TestAPIKeyValidationSuccess(t *testing.T) {
 
 func TestErrorHandlingPaths(t *testing.T) {
 	// Test various error handling paths in the main functions
-	
+
 	// Test setup logging with extreme values
 	require.NotPanics(t, func() {
 		setupLogging("INVALID_LEVEL_12345")
 	})
-	
+
 	// Test context timeout scenarios
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 	defer cancel()
-	
+
 	// Context should be expired immediately
 	select {
 	case <-ctx.Done():
@@ -567,19 +567,19 @@ func TestRunAPIKeyValidationWarning(t *testing.T) {
 	defer db.Close()
 
 	client := alldebrid.New(cfg.AllDebridAPIKey)
-	
+
 	// Test API key validation that will warn but continue
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	
+
 	err = client.CheckAPIKey(ctx)
 	// Should get an error with invalid key, which triggers the warning path
 	require.Error(t, err)
-	
+
 	// Test that we can continue after API key validation failure
 	worker := downloader.NewWorker(db, cfg.BaseDownloadsPath)
 	server := web.NewServer(db, client, cfg, worker)
-	
+
 	require.NotNil(t, worker)
 	require.NotNil(t, server)
 }
@@ -651,7 +651,7 @@ func TestRunServerSignalHandling(t *testing.T) {
 
 	// Test select statement behavior with server error
 	serverErr <- fmt.Errorf("test server error")
-	
+
 	select {
 	case err := <-serverErr:
 		require.Error(t, err)
@@ -708,7 +708,7 @@ func TestRunServerComponentsDetailed(t *testing.T) {
 	// Test database initialization
 	db, err := database.New(cfg.DatabasePath)
 	require.NoError(t, err)
-	
+
 	// Test defer database close function
 	require.NotPanics(t, func() {
 		defer func() {
@@ -784,7 +784,7 @@ func TestRunSuccessfulAPIKeyValidation(t *testing.T) {
 	os.Setenv("BASE_DOWNLOADS_PATH", "/tmp/test")
 	defer func() {
 		os.Unsetenv("ALLDEBRID_API_KEY")
-		os.Unsetenv("DATABASE_PATH") 
+		os.Unsetenv("DATABASE_PATH")
 		os.Unsetenv("SERVER_PORT")
 		os.Unsetenv("BASE_DOWNLOADS_PATH")
 	}()
@@ -837,7 +837,7 @@ func TestRunServerDirectly(t *testing.T) {
 
 	// Create a mock server that will fail immediately
 	mockServer := &mockServer{shouldFail: true}
-	
+
 	// Test runServer with failing server
 	err = runServerWithMockServer(mockServer, worker, db)
 	require.Error(t, err)
@@ -958,7 +958,7 @@ func TestRunServerGracefulShutdownWithSignal(t *testing.T) {
 
 	// Create a signal channel and send a test signal
 	sigChan := make(chan os.Signal, 1)
-	
+
 	// Test the signal handling in a goroutine
 	go func() {
 		// Give the server a moment to try to start, then send signal

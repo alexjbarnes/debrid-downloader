@@ -779,7 +779,7 @@ func TestDB_InvalidDatabaseOperations(t *testing.T) {
 	// Test with closed database
 	db, err := New(":memory:")
 	require.NoError(t, err)
-	
+
 	// Close the database
 	err = db.Close()
 	require.NoError(t, err)

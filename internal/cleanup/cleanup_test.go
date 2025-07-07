@@ -53,11 +53,11 @@ func TestService_CleanupExtractedFiles(t *testing.T) {
 	textFile := filepath.Join(tempDir, "readme.txt")
 	unknownFile := filepath.Join(tempDir, "unknown.xyz")
 
-	err = os.WriteFile(videoFile, []byte("video content"), 0644)
+	err = os.WriteFile(videoFile, []byte("video content"), 0o644)
 	require.NoError(t, err)
-	err = os.WriteFile(textFile, []byte("text content"), 0644)
+	err = os.WriteFile(textFile, []byte("text content"), 0o644)
 	require.NoError(t, err)
-	err = os.WriteFile(unknownFile, []byte("unknown content"), 0644)
+	err = os.WriteFile(unknownFile, []byte("unknown content"), 0o644)
 	require.NoError(t, err)
 
 	// Create extracted file records
@@ -89,7 +89,7 @@ func TestService_CleanupExtractedFiles(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check results
-	require.FileExists(t, videoFile)    // Video files should be kept
+	require.FileExists(t, videoFile)   // Video files should be kept
 	require.NoFileExists(t, textFile)  // Text files should be deleted
 	require.FileExists(t, unknownFile) // Unknown extensions should be kept
 }
@@ -267,7 +267,7 @@ func TestService_DeleteFile(t *testing.T) {
 
 	// Create test file
 	testFile := filepath.Join(tempDir, "test.txt")
-	err = os.WriteFile(testFile, []byte("test content"), 0644)
+	err = os.WriteFile(testFile, []byte("test content"), 0o644)
 	require.NoError(t, err)
 
 	// Create extracted file record
@@ -335,7 +335,7 @@ func TestService_CleanupEmptyDirectories(t *testing.T) {
 
 	// Create base directory within /tmp to ensure it's safe
 	baseDir := "/tmp/test_cleanup"
-	err = os.MkdirAll(baseDir, 0755)
+	err = os.MkdirAll(baseDir, 0o755)
 	require.NoError(t, err)
 	defer os.RemoveAll(baseDir)
 
@@ -349,16 +349,16 @@ func TestService_CleanupEmptyDirectories(t *testing.T) {
 	subDir2 := filepath.Join(tempDir, "subdir2")
 	subDir3 := filepath.Join(tempDir, "subdir3")
 
-	err = os.MkdirAll(subDir1, 0755)
+	err = os.MkdirAll(subDir1, 0o755)
 	require.NoError(t, err)
-	err = os.MkdirAll(subDir2, 0755)
+	err = os.MkdirAll(subDir2, 0o755)
 	require.NoError(t, err)
-	err = os.MkdirAll(subDir3, 0755)
+	err = os.MkdirAll(subDir3, 0o755)
 	require.NoError(t, err)
 
 	// Add a file to subdir2 to make it non-empty
 	testFile := filepath.Join(subDir2, "keepme.txt")
-	err = os.WriteFile(testFile, []byte("content"), 0644)
+	err = os.WriteFile(testFile, []byte("content"), 0o644)
 	require.NoError(t, err)
 
 	// Run cleanup on tempDir (not baseDir)
@@ -366,10 +366,10 @@ func TestService_CleanupEmptyDirectories(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check results
-	require.NoDirExists(t, subDir1)   // Empty, should be removed
-	require.DirExists(t, subDir2)    // Has file, should remain
-	require.NoDirExists(t, subDir3)  // Empty, should be removed
-	require.DirExists(t, tempDir)    // Root should remain
+	require.NoDirExists(t, subDir1) // Empty, should be removed
+	require.DirExists(t, subDir2)   // Has file, should remain
+	require.NoDirExists(t, subDir3) // Empty, should be removed
+	require.DirExists(t, tempDir)   // Root should remain
 }
 
 func TestService_CleanupEmptyDirectoriesUnsafePath(t *testing.T) {
@@ -397,7 +397,7 @@ func TestService_IsDirectoryEmpty(t *testing.T) {
 
 	// Test with non-empty directory
 	testFile := filepath.Join(tempDir, "test.txt")
-	err = os.WriteFile(testFile, []byte("content"), 0644)
+	err = os.WriteFile(testFile, []byte("content"), 0o644)
 	require.NoError(t, err)
 
 	empty = service.isDirectoryEmpty(tempDir)
@@ -433,11 +433,11 @@ func TestService_GetCleanupStats(t *testing.T) {
 	unknownFile := filepath.Join(tempDir, "unknown.xyz")
 	unsafeFile := "/etc/passwd"
 
-	err = os.WriteFile(videoFile, []byte("video content"), 0644)
+	err = os.WriteFile(videoFile, []byte("video content"), 0o644)
 	require.NoError(t, err)
-	err = os.WriteFile(textFile, []byte("text content"), 0644)
+	err = os.WriteFile(textFile, []byte("text content"), 0o644)
 	require.NoError(t, err)
-	err = os.WriteFile(unknownFile, []byte("unknown content"), 0644)
+	err = os.WriteFile(unknownFile, []byte("unknown content"), 0o644)
 	require.NoError(t, err)
 
 	// Create extracted file records

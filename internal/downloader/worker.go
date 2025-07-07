@@ -264,7 +264,7 @@ func (w *Worker) processDownload(ctx context.Context, downloadID int64) {
 				return
 			case <-time.After(backoffDuration):
 			}
-			
+
 			// Check if the download was deleted during the backoff period
 			if _, err := w.db.GetDownload(downloadID); err != nil {
 				w.logger.Info("Download was deleted during retry backoff, stopping processing",
@@ -612,9 +612,9 @@ func (w *Worker) processGroup(groupID string) {
 
 	// Filter for completed downloads
 	var completedDownloads []*models.Download
-	var allCompleted = true
-	var statusCount = make(map[models.DownloadStatus]int)
-	
+	allCompleted := true
+	statusCount := make(map[models.DownloadStatus]int)
+
 	for _, download := range downloads {
 		statusCount[download.Status]++
 		if download.Status == models.StatusCompleted {
@@ -629,7 +629,7 @@ func (w *Worker) processGroup(groupID string) {
 
 	if !allCompleted {
 		w.logger.Info("Not all downloads in group are completed yet", "group_id", groupID, "completed", len(completedDownloads), "total", len(downloads))
-		
+
 		// Log details of incomplete downloads
 		for _, download := range downloads {
 			if download.Status != models.StatusCompleted && download.Status != models.StatusFailed {
@@ -642,11 +642,11 @@ func (w *Worker) processGroup(groupID string) {
 	// Now filter for archives that should be processed
 	var archiveDownloads []*models.Download
 	processedMultiparts := make(map[string]bool)
-	
+
 	for _, download := range completedDownloads {
 		if download.IsArchive {
 			filename := strings.ToLower(download.Filename)
-			
+
 			// Check if it's a multi-part RAR
 			if strings.HasSuffix(filename, ".rar") && strings.Contains(filename, ".part") {
 				// Extract the base name (everything before .partX.rar)
@@ -654,11 +654,11 @@ func (w *Worker) processGroup(groupID string) {
 				if idx := strings.Index(filename, ".part"); idx > 0 {
 					baseName = filename[:idx]
 				}
-				
+
 				// Only process the first part
-				if strings.Contains(filename, ".part1.rar") || 
-				   strings.Contains(filename, ".part01.rar") || 
-				   strings.Contains(filename, ".part001.rar") {
+				if strings.Contains(filename, ".part1.rar") ||
+					strings.Contains(filename, ".part01.rar") ||
+					strings.Contains(filename, ".part001.rar") {
 					if !processedMultiparts[baseName] {
 						archiveDownloads = append(archiveDownloads, download)
 						processedMultiparts[baseName] = true
@@ -805,27 +805,27 @@ func (w *Worker) processArchive(download *models.Download) error {
 // deleteArchiveFiles deletes all parts of an archive (handles multi-part archives)
 func (w *Worker) deleteArchiveFiles(download *models.Download) error {
 	archivePath := filepath.Join(download.Directory, download.Filename)
-	
+
 	// Delete the main archive file
 	if err := os.Remove(archivePath); err != nil && !os.IsNotExist(err) {
 		w.logger.Warn("Failed to delete archive file", "archive", archivePath, "error", err)
 	} else {
 		w.logger.Info("Archive file deleted", "archive", archivePath)
 	}
-	
+
 	// If this is part of a group, delete all other archive parts in the group
 	if download.GroupID != "" {
 		downloads, err := w.db.GetDownloadsByGroupID(download.GroupID)
 		if err != nil {
 			return fmt.Errorf("failed to get downloads for archive cleanup: %w", err)
 		}
-		
+
 		for _, groupDownload := range downloads {
 			// Skip the file we already deleted
 			if groupDownload.ID == download.ID {
 				continue
 			}
-			
+
 			// Check if it's a RAR part file (including parts that aren't marked as archives)
 			filename := strings.ToLower(groupDownload.Filename)
 			if strings.HasSuffix(filename, ".rar") {
@@ -838,7 +838,7 @@ func (w *Worker) deleteArchiveFiles(download *models.Download) error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 

@@ -11,7 +11,7 @@ import (
 func TestNewService(t *testing.T) {
 	basePath := "/test/base/path"
 	service := NewService(basePath)
-	
+
 	require.NotNil(t, service)
 	require.Equal(t, filepath.Clean(basePath), service.BasePath)
 }
@@ -24,9 +24,9 @@ func TestService_ValidatePath(t *testing.T) {
 	service := NewService(tempDir)
 
 	tests := []struct {
-		name         string
-		relativePath string
-		expectError  bool
+		name          string
+		relativePath  string
+		expectError   bool
 		errorContains string
 	}{
 		{
@@ -50,21 +50,21 @@ func TestService_ValidatePath(t *testing.T) {
 			expectError:  false,
 		},
 		{
-			name:         "path traversal attack - parent directory",
-			relativePath: "../",
-			expectError:  true,
+			name:          "path traversal attack - parent directory",
+			relativePath:  "../",
+			expectError:   true,
 			errorContains: "path outside of base directory",
 		},
 		{
-			name:         "path traversal attack - multiple levels",
-			relativePath: "../../etc/passwd",
-			expectError:  true,
+			name:          "path traversal attack - multiple levels",
+			relativePath:  "../../etc/passwd",
+			expectError:   true,
 			errorContains: "path outside of base directory",
 		},
 		{
-			name:         "path traversal attack - mixed valid and invalid",
-			relativePath: "valid/../../../etc",
-			expectError:  true,
+			name:          "path traversal attack - mixed valid and invalid",
+			relativePath:  "valid/../../../etc",
+			expectError:   true,
 			errorContains: "path outside of base directory",
 		},
 		{
@@ -82,7 +82,7 @@ func TestService_ValidatePath(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			fullPath, err := service.ValidatePath(tt.relativePath)
-			
+
 			if tt.expectError {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), tt.errorContains)
@@ -110,7 +110,7 @@ func TestService_ListDirectories(t *testing.T) {
 		"deep/nested/dir",
 	}
 	for _, dir := range testDirs {
-		err = os.MkdirAll(filepath.Join(tempDir, dir), 0755)
+		err = os.MkdirAll(filepath.Join(tempDir, dir), 0o755)
 		require.NoError(t, err)
 	}
 
@@ -121,7 +121,7 @@ func TestService_ListDirectories(t *testing.T) {
 		"subdir1/file3.txt",
 	}
 	for _, file := range testFiles {
-		err = os.WriteFile(filepath.Join(tempDir, file), []byte("test"), 0644)
+		err = os.WriteFile(filepath.Join(tempDir, file), []byte("test"), 0o644)
 		require.NoError(t, err)
 	}
 
@@ -130,10 +130,10 @@ func TestService_ListDirectories(t *testing.T) {
 	t.Run("list root directory", func(t *testing.T) {
 		dirs, err := service.ListDirectories("")
 		require.NoError(t, err)
-		
+
 		// Should have subdir1, subdir2, and deep directories (no files)
 		require.Len(t, dirs, 3)
-		
+
 		dirNames := make([]string, len(dirs))
 		for i, dir := range dirs {
 			dirNames[i] = dir.Name
@@ -147,7 +147,7 @@ func TestService_ListDirectories(t *testing.T) {
 	t.Run("list subdirectory with parent link", func(t *testing.T) {
 		dirs, err := service.ListDirectories("/subdir1")
 		require.NoError(t, err)
-		
+
 		// Should have parent directory ".." link
 		require.Greater(t, len(dirs), 0)
 		require.Equal(t, "..", dirs[0].Name)
@@ -158,7 +158,7 @@ func TestService_ListDirectories(t *testing.T) {
 	t.Run("list nested directory", func(t *testing.T) {
 		dirs, err := service.ListDirectories("/deep/nested")
 		require.NoError(t, err)
-		
+
 		// Should have parent directory ".." link and "dir" subdirectory
 		require.Len(t, dirs, 2)
 		require.Equal(t, "..", dirs[0].Name)
@@ -181,12 +181,12 @@ func TestService_ListDirectories(t *testing.T) {
 
 	t.Run("list directory with parent path edge case", func(t *testing.T) {
 		// Create a subdirectory at root level to test the parent path logic
-		err := os.Mkdir(filepath.Join(tempDir, "rootsub"), 0755)
+		err := os.Mkdir(filepath.Join(tempDir, "rootsub"), 0o755)
 		require.NoError(t, err)
-		
+
 		dirs, err := service.ListDirectories("rootsub")
 		require.NoError(t, err)
-		
+
 		// Should have parent directory ".." with path "/"
 		require.Greater(t, len(dirs), 0)
 		require.Equal(t, "..", dirs[0].Name)
@@ -302,7 +302,7 @@ func TestService_CreateDirectory(t *testing.T) {
 	t.Run("create new directory", func(t *testing.T) {
 		err := service.CreateDirectory("/newdir")
 		require.NoError(t, err)
-		
+
 		// Check directory was created
 		fullPath := filepath.Join(tempDir, "newdir")
 		stat, err := os.Stat(fullPath)
@@ -313,7 +313,7 @@ func TestService_CreateDirectory(t *testing.T) {
 	t.Run("create nested directory", func(t *testing.T) {
 		err := service.CreateDirectory("/deep/nested/newdir")
 		require.NoError(t, err)
-		
+
 		// Check directory was created
 		fullPath := filepath.Join(tempDir, "deep/nested/newdir")
 		stat, err := os.Stat(fullPath)
@@ -325,7 +325,7 @@ func TestService_CreateDirectory(t *testing.T) {
 		// Create directory first
 		err := service.CreateDirectory("/existing")
 		require.NoError(t, err)
-		
+
 		// Try to create again
 		err = service.CreateDirectory("/existing")
 		require.Error(t, err)
@@ -337,7 +337,6 @@ func TestService_CreateDirectory(t *testing.T) {
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "path outside of base directory")
 	})
-
 }
 
 func TestDirectoryInfo_Struct(t *testing.T) {
@@ -346,7 +345,7 @@ func TestDirectoryInfo_Struct(t *testing.T) {
 		Path:  "/test/path",
 		IsDir: true,
 	}
-	
+
 	require.Equal(t, "testdir", info.Name)
 	require.Equal(t, "/test/path", info.Path)
 	require.True(t, info.IsDir)
@@ -357,7 +356,7 @@ func TestBreadcrumb_Struct(t *testing.T) {
 		Name: "Home",
 		Path: "/home",
 	}
-	
+
 	require.Equal(t, "Home", breadcrumb.Name)
 	require.Equal(t, "/home", breadcrumb.Path)
 }
@@ -393,7 +392,7 @@ func TestService_EdgeCases(t *testing.T) {
 	t.Run("path validation edge case", func(t *testing.T) {
 		// Create a service with a base path that ends with separator
 		serviceWithSep := NewService(tempDir + string(filepath.Separator))
-		
+
 		// Test path that would trigger the second condition in ValidatePath
 		fullPath, err := serviceWithSep.ValidatePath("")
 		require.NoError(t, err)
@@ -404,11 +403,11 @@ func TestService_EdgeCases(t *testing.T) {
 		// Test GetBreadcrumbs with edge cases to improve coverage
 		breadcrumbs := service.GetBreadcrumbs("/")
 		require.Len(t, breadcrumbs, 1)
-		
+
 		// Test with path that has empty components after cleaning
 		breadcrumbs = service.GetBreadcrumbs("///")
 		require.Len(t, breadcrumbs, 1)
-		
+
 		// Test with single empty component
 		breadcrumbs = service.GetBreadcrumbs("/a//b/")
 		require.Len(t, breadcrumbs, 3)
@@ -423,7 +422,7 @@ func TestService_ListDirectoriesParentPathHandling(t *testing.T) {
 	defer os.RemoveAll(tempDir)
 
 	// Create nested directory structure
-	err = os.MkdirAll(filepath.Join(tempDir, "level1/level2"), 0755)
+	err = os.MkdirAll(filepath.Join(tempDir, "level1/level2"), 0o755)
 	require.NoError(t, err)
 
 	service := NewService(tempDir)
@@ -431,7 +430,7 @@ func TestService_ListDirectoriesParentPathHandling(t *testing.T) {
 	t.Run("parent path from root", func(t *testing.T) {
 		dirs, err := service.ListDirectories("/")
 		require.NoError(t, err)
-		
+
 		// Should not have parent directory link at root
 		for _, dir := range dirs {
 			require.NotEqual(t, "..", dir.Name)
@@ -441,7 +440,7 @@ func TestService_ListDirectoriesParentPathHandling(t *testing.T) {
 	t.Run("parent path from level 1", func(t *testing.T) {
 		dirs, err := service.ListDirectories("/level1")
 		require.NoError(t, err)
-		
+
 		// Should have parent directory pointing to root
 		require.Greater(t, len(dirs), 0)
 		require.Equal(t, "..", dirs[0].Name)
@@ -451,7 +450,7 @@ func TestService_ListDirectoriesParentPathHandling(t *testing.T) {
 	t.Run("parent path from level 2", func(t *testing.T) {
 		dirs, err := service.ListDirectories("/level1/level2")
 		require.NoError(t, err)
-		
+
 		// Should have parent directory pointing to level1
 		require.Greater(t, len(dirs), 0)
 		require.Equal(t, "..", dirs[0].Name)

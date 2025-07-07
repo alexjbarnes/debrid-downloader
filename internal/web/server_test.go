@@ -76,7 +76,7 @@ func TestGetLocalIP(t *testing.T) {
 	ip := getLocalIP()
 	require.NotEmpty(t, ip)
 	// Should return either "localhost" or a valid IP address
-	require.True(t, ip == "localhost" || 
+	require.True(t, ip == "localhost" ||
 		len(ip) >= 7, // Minimum IP length
 		"Expected localhost or valid IP, got: %s", ip)
 }
@@ -155,14 +155,14 @@ func TestServer_Components(t *testing.T) {
 	}
 
 	server := NewServer(db, client, cfg, worker)
-	
+
 	// Test server configuration
 	require.NotNil(t, server.server)
 	require.Equal(t, ":3000", server.server.Addr)
 	require.Equal(t, 15*time.Second, server.server.ReadTimeout)
 	require.Equal(t, 15*time.Second, server.server.WriteTimeout)
 	require.Equal(t, 60*time.Second, server.server.IdleTimeout)
-	
+
 	// Test handlers are set
 	require.NotNil(t, server.handlers)
 	require.NotNil(t, server.logger)
@@ -185,7 +185,7 @@ func TestServer_ShutdownTimeout(t *testing.T) {
 	// Test shutdown with very short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Nanosecond)
 	defer cancel()
-	
+
 	// Shutdown should handle timeout gracefully
 	err = server.Shutdown(ctx)
 	// Context might be cancelled but shouldn't panic

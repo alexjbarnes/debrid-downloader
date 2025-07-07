@@ -466,7 +466,7 @@ func TestWorker_ProcessGroupExtraction(t *testing.T) {
 
 	// Create archive file for testing
 	archiveFile := filepath.Join(tempDir, "test.zip")
-	err = os.WriteFile(archiveFile, []byte("fake zip content"), 0644)
+	err = os.WriteFile(archiveFile, []byte("fake zip content"), 0o644)
 	require.NoError(t, err)
 
 	// Create download with archive
@@ -493,7 +493,7 @@ func TestWorker_ProcessGroupExtraction(t *testing.T) {
 	require.NoError(t, err)
 	// Group processing might complete successfully even without real archives
 	require.Contains(t, []models.DownloadGroupStatus{
-		models.GroupStatusCompleted, 
+		models.GroupStatusCompleted,
 		models.GroupStatusProcessing,
 		models.GroupStatusFailed,
 	}, updatedGroup.Status)
@@ -651,7 +651,7 @@ func TestWorker_DeleteArchiveFiles(t *testing.T) {
 
 	// Create test archive file
 	archiveFile := filepath.Join(tempDir, "test.zip")
-	err = os.WriteFile(archiveFile, []byte("test content"), 0644)
+	err = os.WriteFile(archiveFile, []byte("test content"), 0o644)
 	require.NoError(t, err)
 
 	// Create download record
@@ -820,7 +820,7 @@ func TestWorker_DownloadFileResumeFromByte(t *testing.T) {
 	// Create partial file
 	tempFilename := "test.1.tmp" // ID 1
 	partialPath := filepath.Join(tempDir, tempFilename)
-	err = os.WriteFile(partialPath, []byte(testContent[:12]), 0644)
+	err = os.WriteFile(partialPath, []byte(testContent[:12]), 0o644)
 	require.NoError(t, err)
 
 	// Create download
@@ -876,33 +876,33 @@ func TestWorker_ProcessGroupWithArchives(t *testing.T) {
 
 	// Create archive files
 	zipFile := filepath.Join(tempDir, "test.zip")
-	err = os.WriteFile(zipFile, []byte("fake zip"), 0644)
+	err = os.WriteFile(zipFile, []byte("fake zip"), 0o644)
 	require.NoError(t, err)
 
 	rarFile := filepath.Join(tempDir, "test.part1.rar")
-	err = os.WriteFile(rarFile, []byte("fake rar"), 0644)
+	err = os.WriteFile(rarFile, []byte("fake rar"), 0o644)
 	require.NoError(t, err)
 
 	// Create downloads with archives
 	download1 := &models.Download{
-		ID:          1,
-		Filename:    "test.zip",
-		Directory:   tempDir,
-		Status:      models.StatusCompleted,
-		GroupID:     groupID,
-		IsArchive:   true,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:        1,
+		Filename:  "test.zip",
+		Directory: tempDir,
+		Status:    models.StatusCompleted,
+		GroupID:   groupID,
+		IsArchive: true,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	download2 := &models.Download{
-		ID:          2,
-		Filename:    "test.part1.rar",
-		Directory:   tempDir,
-		Status:      models.StatusCompleted,
-		GroupID:     groupID,
-		IsArchive:   true,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		ID:        2,
+		Filename:  "test.part1.rar",
+		Directory: tempDir,
+		Status:    models.StatusCompleted,
+		GroupID:   groupID,
+		IsArchive: true,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 	err = db.CreateDownload(download1)
 	require.NoError(t, err)
@@ -961,9 +961,9 @@ func TestWorker_DeleteArchiveFilesWithGroup(t *testing.T) {
 	// Create archive files
 	file1 := filepath.Join(tempDir, "archive.part1.rar")
 	file2 := filepath.Join(tempDir, "archive.part2.rar")
-	err = os.WriteFile(file1, []byte("part1"), 0644)
+	err = os.WriteFile(file1, []byte("part1"), 0o644)
 	require.NoError(t, err)
-	err = os.WriteFile(file2, []byte("part2"), 0644)
+	err = os.WriteFile(file2, []byte("part2"), 0o644)
 	require.NoError(t, err)
 
 	// Create downloads in group
@@ -1011,7 +1011,7 @@ func TestWorker_ProcessArchiveRealExtraction(t *testing.T) {
 
 	// Create fake archive file (will fail extraction)
 	archiveFile := filepath.Join(tempDir, "corrupt.zip")
-	err = os.WriteFile(archiveFile, []byte("not a real zip file"), 0644)
+	err = os.WriteFile(archiveFile, []byte("not a real zip file"), 0o644)
 	require.NoError(t, err)
 
 	download := &models.Download{
@@ -1104,7 +1104,7 @@ func TestWorker_DownloadFileErrors(t *testing.T) {
 	})
 }
 
-// Test copyWithProgress function edge cases  
+// Test copyWithProgress function edge cases
 func TestWorker_CopyWithProgressEdgeCases(t *testing.T) {
 	db, err := database.New(":memory:")
 	require.NoError(t, err)
@@ -1375,9 +1375,9 @@ func TestWorker_PauseCurrentDownloadEdgeCases(t *testing.T) {
 	t.Run("pause with download setup", func(t *testing.T) {
 		// Create a download
 		download := &models.Download{
-			ID:       1,
-			Status:   models.StatusDownloading,
-			Filename: "test.txt",
+			ID:        1,
+			Status:    models.StatusDownloading,
+			Filename:  "test.txt",
 			Directory: "/tmp/test",
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
@@ -1461,7 +1461,7 @@ func TestWorker_DownloadFileAdditionalCoverage(t *testing.T) {
 
 		// Create partial file
 		partialPath := filepath.Join(tempDir, "partial.txt.2.tmp")
-		err = os.WriteFile(partialPath, []byte("partial"), 0644)
+		err = os.WriteFile(partialPath, []byte("partial"), 0o644)
 		require.NoError(t, err)
 
 		// Mock server that supports range requests
@@ -1487,30 +1487,30 @@ func TestWorker_DownloadFileAdditionalCoverage(t *testing.T) {
 		// Create download with paused time
 		startTime := time.Now().Add(-10 * time.Second)
 		download := &models.Download{
-			ID:               3,
-			UnrestrictedURL:  "",
-			Filename:         "speed_test.txt",
-			Directory:        tempDir,
-			Status:           models.StatusPending,
-			StartedAt:        &startTime,
-			TotalPausedTime:  2000, // 2 seconds in milliseconds
-			CreatedAt:        time.Now(),
-			UpdatedAt:        time.Now(),
+			ID:              3,
+			UnrestrictedURL: "",
+			Filename:        "speed_test.txt",
+			Directory:       tempDir,
+			Status:          models.StatusPending,
+			StartedAt:       &startTime,
+			TotalPausedTime: 2000, // 2 seconds in milliseconds
+			CreatedAt:       time.Now(),
+			UpdatedAt:       time.Now(),
 		}
 		err = db.CreateDownload(download)
 		require.NoError(t, err)
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Length", "100")
-			w.Write([]byte("0123456789" + 
-				"0123456789" + 
-				"0123456789" + 
-				"0123456789" + 
-				"0123456789" + 
-				"0123456789" + 
-				"0123456789" + 
-				"0123456789" + 
-				"0123456789" + 
+			w.Write([]byte("0123456789" +
+				"0123456789" +
+				"0123456789" +
+				"0123456789" +
+				"0123456789" +
+				"0123456789" +
+				"0123456789" +
+				"0123456789" +
+				"0123456789" +
 				"0123456789"))
 		}))
 		defer server.Close()
@@ -1744,7 +1744,7 @@ func TestWorker_ProcessArchiveComprehensive(t *testing.T) {
 	t.Run("processArchive with cleanup service", func(t *testing.T) {
 		// Create a fake archive file
 		archivePath := filepath.Join(tempDir, "cleanup_test.zip")
-		err = os.WriteFile(archivePath, []byte("fake zip"), 0644)
+		err = os.WriteFile(archivePath, []byte("fake zip"), 0o644)
 		require.NoError(t, err)
 
 		download := &models.Download{
@@ -1871,7 +1871,7 @@ func TestWorker_DownloadFileComprehensive(t *testing.T) {
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			content := strings.Repeat("X", 500)
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(content)))
-			
+
 			// Send content in chunks to trigger progress updates
 			chunk := 50
 			for i := 0; i < len(content); i += chunk {
@@ -1916,7 +1916,7 @@ func TestWorker_DownloadFileComprehensive(t *testing.T) {
 		// Create partial file first
 		tempFilename := fmt.Sprintf("%s.%d.tmp", download.Filename, download.ID)
 		partialPath := filepath.Join(tempDir, tempFilename)
-		err = os.WriteFile(partialPath, []byte("partial"), 0644)
+		err = os.WriteFile(partialPath, []byte("partial"), 0o644)
 		require.NoError(t, err)
 
 		// Mock server that handles range requests
@@ -1947,7 +1947,7 @@ func TestWorker_DownloadFileComprehensive(t *testing.T) {
 	t.Run("downloadFile with directory creation", func(t *testing.T) {
 		// Use nested directory that doesn't exist
 		nestedDir := filepath.Join(tempDir, "nested", "deep", "dir")
-		
+
 		download := &models.Download{
 			ID:              3,
 			Filename:        "nested.txt",
