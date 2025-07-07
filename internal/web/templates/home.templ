@@ -380,6 +380,30 @@ templ Home(downloads []*models.Download, suggestedDir string) {
 				document.getElementById('status-filter').addEventListener('change', function() {
 					saveStatusSelections();
 				});
+				
+				// Download card toggle functionality (works with HTMX)
+				document.addEventListener('click', function(e) {
+					const header = e.target.closest('.download-header');
+					if (header) {
+						const downloadId = header.getAttribute('data-download-id');
+						const content = document.querySelector('.download-content-' + downloadId);
+						const chevron = document.querySelector('.download-chevron-' + downloadId);
+						
+						if (content && chevron) {
+							if (content.classList.contains('max-h-0')) {
+								// Expand
+								content.classList.remove('max-h-0', 'opacity-0');
+								content.classList.add('max-h-screen', 'opacity-100');
+								chevron.style.transform = 'rotate(180deg)';
+							} else {
+								// Collapse
+								content.classList.remove('max-h-screen', 'opacity-100');
+								content.classList.add('max-h-0', 'opacity-0');
+								chevron.style.transform = 'rotate(0deg)';
+							}
+						}
+					}
+				});
 			</script>
 
 			<!-- Downloads List -->
