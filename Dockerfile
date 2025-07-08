@@ -11,15 +11,11 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Install templ for template generation and add to PATH
-ENV PATH="/go/bin:${PATH}"
-RUN go install github.com/a-h/templ/cmd/templ@latest
-
 # Copy source code
 COPY . .
 
-# Generate templ files  
-RUN templ generate
+# Generate templ files using go run
+RUN go run github.com/a-h/templ/cmd/templ@latest generate
 
 # Build the application
 RUN CGO_ENABLED=0 GOOS=linux go build -a -o debrid-downloader ./cmd/debrid-downloader
