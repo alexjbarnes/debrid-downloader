@@ -1,0 +1,33 @@
+# Git files
+.git
+.gitignore
+
+# Generated files
+*_templ.go
+
+# Test files
+*_test.go
+
+# Build artifacts
+debrid-downloader
+bin/
+dist/
+
+# Development files
+.env
+debrid.db
+.claude/
+
+# Documentation
+*.md
+docs/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
