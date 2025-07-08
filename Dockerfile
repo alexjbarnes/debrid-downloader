@@ -11,13 +11,14 @@ COPY go.mod go.sum ./
 # Download dependencies
 RUN go mod download
 
-# Install templ for template generation
+# Install templ for template generation and add to PATH
+ENV PATH="/go/bin:${PATH}"
 RUN go install github.com/a-h/templ/cmd/templ@latest
 
 # Copy source code
 COPY . .
 
-# Generate templ files
+# Generate templ files  
 RUN templ generate
 
 # Build the application
