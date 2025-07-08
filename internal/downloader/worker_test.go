@@ -293,7 +293,7 @@ func TestWorker_ProcessDownloadWithMockServer(t *testing.T) {
 		} else {
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(testContent)))
 		}
-		w.Write([]byte(testContent))
+		_, _ = w.Write([]byte(testContent))
 	}))
 	defer server.Close()
 
@@ -530,7 +530,8 @@ func TestWorker_CopyWithProgress(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check file was written correctly
-	tempFile.Seek(0, 0)
+	_, err = tempFile.Seek(0, 0)
+	require.NoError(t, err)
 	written, err := io.ReadAll(tempFile)
 	require.NoError(t, err)
 	require.Equal(t, testData, string(written))
@@ -809,10 +810,10 @@ func TestWorker_DownloadFileResumeFromByte(t *testing.T) {
 			w.Header().Set("Accept-Ranges", "bytes")
 			w.Header().Set("Content-Range", fmt.Sprintf("bytes 12-%d/%d", len(testContent)-1, len(testContent)))
 			w.WriteHeader(http.StatusPartialContent)
-			w.Write([]byte(testContent[12:])) // Resume from byte 12
+			_, _ = w.Write([]byte(testContent[12:])) // Resume from byte 12
 		} else {
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(testContent)))
-			w.Write([]byte(testContent))
+			_, _ = w.Write([]byte(testContent))
 		}
 	}))
 	defer server.Close()
@@ -1082,7 +1083,7 @@ func TestWorker_DownloadFileErrors(t *testing.T) {
 		// Mock server with delay
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(200 * time.Millisecond)
-			w.Write([]byte("delayed content"))
+			_, _ = w.Write([]byte("delayed content"))
 		}))
 		defer server.Close()
 
@@ -1131,7 +1132,7 @@ func TestWorker_CopyWithProgressEdgeCases(t *testing.T) {
 		testContent := "Test content for size update"
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(testContent)))
-			w.Write([]byte(testContent))
+			_, _ = w.Write([]byte(testContent))
 		}))
 		defer server.Close()
 
@@ -1165,7 +1166,7 @@ func TestWorker_CopyWithProgressEdgeCases(t *testing.T) {
 			w.Header().Set("Content-Length", "100")
 			// Send content in chunks to trigger progress updates
 			for i := 0; i < 10; i++ {
-				w.Write([]byte("1234567890"))
+				_, _ = w.Write([]byte("1234567890"))
 				if f, ok := w.(http.Flusher); ok {
 					f.Flush()
 				}
@@ -1423,7 +1424,7 @@ func TestWorker_DownloadFileAdditionalCoverage(t *testing.T) {
 	t.Run("download with file creation error", func(t *testing.T) {
 		// Mock server
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("test content"))
+			_, _ = w.Write([]byte("test content"))
 		}))
 		defer server.Close()
 
@@ -1469,9 +1470,9 @@ func TestWorker_DownloadFileAdditionalCoverage(t *testing.T) {
 			rangeHeader := r.Header.Get("Range")
 			if rangeHeader != "" {
 				w.WriteHeader(http.StatusPartialContent)
-				w.Write([]byte(" content"))
+				_, _ = w.Write([]byte(" content"))
 			} else {
-				w.Write([]byte("full content"))
+				_, _ = w.Write([]byte("full content"))
 			}
 		}))
 		defer server.Close()
@@ -1502,7 +1503,7 @@ func TestWorker_DownloadFileAdditionalCoverage(t *testing.T) {
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Content-Length", "100")
-			w.Write([]byte("0123456789" +
+			_, _ = w.Write([]byte("0123456789" +
 				"0123456789" +
 				"0123456789" +
 				"0123456789" +
@@ -1879,7 +1880,7 @@ func TestWorker_DownloadFileComprehensive(t *testing.T) {
 				if end > len(content) {
 					end = len(content)
 				}
-				w.Write([]byte(content[i:end]))
+				_, _ = w.Write([]byte(content[i:end]))
 				if f, ok := w.(http.Flusher); ok {
 					f.Flush()
 				}
@@ -1927,9 +1928,9 @@ func TestWorker_DownloadFileComprehensive(t *testing.T) {
 				// Parse range and return partial content
 				w.Header().Set("Accept-Ranges", "bytes")
 				w.WriteHeader(http.StatusPartialContent)
-				w.Write([]byte(" content continuation"))
+				_, _ = w.Write([]byte(" content continuation"))
 			} else {
-				w.Write([]byte(fullContent))
+				_, _ = w.Write([]byte(fullContent))
 			}
 		}))
 		defer server.Close()
@@ -1960,7 +1961,7 @@ func TestWorker_DownloadFileComprehensive(t *testing.T) {
 		require.NoError(t, err)
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Write([]byte("nested content"))
+			_, _ = w.Write([]byte("nested content"))
 		}))
 		defer server.Close()
 

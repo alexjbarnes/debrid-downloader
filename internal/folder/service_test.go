@@ -3,6 +3,7 @@ package folder
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -91,7 +92,14 @@ func TestService_ValidatePath(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEmpty(t, fullPath)
 				// Ensure the path is within the base directory
-				require.True(t, filepath.HasPrefix(fullPath, service.BasePath))
+				// Ensure the path is within the base directory
+				absBasePath, err := filepath.Abs(service.BasePath)
+				require.NoError(t, err)
+				absFullPath, err := filepath.Abs(fullPath)
+				require.NoError(t, err)
+				relPath, err := filepath.Rel(absBasePath, absFullPath)
+				require.NoError(t, err)
+				require.False(t, strings.HasPrefix(relPath, ".."), "path should be within base directory")
 			}
 		})
 	}

@@ -33,3 +33,6 @@ CLAUDE.md
 debrid.db
 /media
 debrid-downloader
+
+# Generated templ files
+*_templ.go

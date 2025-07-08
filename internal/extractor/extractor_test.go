@@ -237,7 +237,13 @@ func TestService_ExtractZipWithInvalidPath(t *testing.T) {
 	} else {
 		// If it succeeds, files should be in safe locations
 		for _, file := range files {
-			require.True(t, filepath.HasPrefix(file, extractDir))
+			absExtractDir, err := filepath.Abs(extractDir)
+			require.NoError(t, err)
+			absFile, err := filepath.Abs(file)
+			require.NoError(t, err)
+			relPath, err := filepath.Rel(absExtractDir, absFile)
+			require.NoError(t, err)
+			require.False(t, strings.HasPrefix(relPath, ".."), "extracted file should be within extract directory")
 		}
 	}
 }
@@ -535,7 +541,13 @@ func TestService_ExtractZipWithDangerousFilenames(t *testing.T) {
 
 	// Check that only safe files were extracted
 	for _, file := range files {
-		require.True(t, filepath.HasPrefix(file, extractDir))
+		absExtractDir, err := filepath.Abs(extractDir)
+		require.NoError(t, err)
+		absFile, err := filepath.Abs(file)
+		require.NoError(t, err)
+		relPath, err := filepath.Rel(absExtractDir, absFile)
+		require.NoError(t, err)
+		require.False(t, strings.HasPrefix(relPath, ".."), "extracted file should be within extract directory")
 		require.False(t, strings.Contains(file, ".."))
 	}
 }
@@ -779,7 +791,9 @@ func TestService_ExtractRarErrorPaths(t *testing.T) {
 		// Make directory unreadable to cause listing error
 		err = os.Chmod(tempDir, 0o000)
 		if err == nil { // Only proceed if chmod worked
-			defer os.Chmod(tempDir, 0o755) // Restore permissions
+			defer func() {
+				_ = os.Chmod(tempDir, 0o755) // Restore permissions, ignore error in cleanup
+			}()
 
 			files, err := service.extractRar(rarPath, tempDir)
 			// Should handle the directory read error gracefully
@@ -937,22 +951,22 @@ func createRarMainHeader() []byte {
 	var buf bytes.Buffer
 
 	// Header CRC (placeholder)
-	binary.Write(&buf, binary.LittleEndian, uint16(0x1234))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(0x1234))
 
 	// Header type (main header = 0x73)
 	buf.WriteByte(0x73)
 
 	// Header flags
-	binary.Write(&buf, binary.LittleEndian, uint16(0x0000))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(0x0000))
 
 	// Header size
-	binary.Write(&buf, binary.LittleEndian, uint16(13))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(13))
 
 	// Archive flags
-	binary.Write(&buf, binary.LittleEndian, uint16(0x0000))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(0x0000))
 
 	// Reserved fields
-	binary.Write(&buf, binary.LittleEndian, uint16(0x0000))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(0x0000))
 
 	return buf.Bytes()
 }
@@ -962,32 +976,32 @@ func createRarFileHeader(filename, content string) []byte {
 	var buf bytes.Buffer
 
 	// Header CRC (placeholder)
-	binary.Write(&buf, binary.LittleEndian, uint16(0x5678))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(0x5678))
 
 	// Header type (file header = 0x74)
 	buf.WriteByte(0x74)
 
 	// Header flags
-	binary.Write(&buf, binary.LittleEndian, uint16(0x8000)) // Long block flag
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(0x8000)) // Long block flag
 
 	// Header size
 	headerSize := uint16(32 + len(filename))
-	binary.Write(&buf, binary.LittleEndian, headerSize)
+	_ = binary.Write(&buf, binary.LittleEndian, headerSize)
 
 	// Packed size
-	binary.Write(&buf, binary.LittleEndian, uint32(len(content)))
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(len(content)))
 
 	// Unpacked size
-	binary.Write(&buf, binary.LittleEndian, uint32(len(content)))
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(len(content)))
 
 	// Host OS
 	buf.WriteByte(0x02) // Windows
 
 	// File CRC
-	binary.Write(&buf, binary.LittleEndian, uint32(0x12345678))
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(0x12345678))
 
 	// File time
-	binary.Write(&buf, binary.LittleEndian, uint32(time.Now().Unix()))
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(time.Now().Unix()))
 
 	// RAR version
 	buf.WriteByte(0x14) // Version 2.0
@@ -996,10 +1010,10 @@ func createRarFileHeader(filename, content string) []byte {
 	buf.WriteByte(0x30) // Store (no compression)
 
 	// Filename length
-	binary.Write(&buf, binary.LittleEndian, uint16(len(filename)))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(len(filename)))
 
 	// File attributes
-	binary.Write(&buf, binary.LittleEndian, uint32(0x20)) // Archive bit
+	_ = binary.Write(&buf, binary.LittleEndian, uint32(0x20)) // Archive bit
 
 	// Filename
 	buf.WriteString(filename)
@@ -1012,16 +1026,16 @@ func createRarEndMarker() []byte {
 	var buf bytes.Buffer
 
 	// Header CRC
-	binary.Write(&buf, binary.LittleEndian, uint16(0x3DC4))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(0x3DC4))
 
 	// Header type (end of archive = 0x7B)
 	buf.WriteByte(0x7B)
 
 	// Header flags
-	binary.Write(&buf, binary.LittleEndian, uint16(0x4000))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(0x4000))
 
 	// Header size
-	binary.Write(&buf, binary.LittleEndian, uint16(7))
+	_ = binary.Write(&buf, binary.LittleEndian, uint16(7))
 
 	return buf.Bytes()
 }
