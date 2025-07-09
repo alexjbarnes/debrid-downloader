@@ -25,13 +25,14 @@ templ CurrentDownloads(downloads []*models.Download) {
 					if download.Status == models.StatusDownloading && download.Progress > 0 {
 						<div class="space-y-1">
 							<div class="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-								<span>{ fmt.Sprintf("%.1f%%", download.Progress) }</span>
+								<span id={ fmt.Sprintf("progress-text-%d", download.ID) }>{ fmt.Sprintf("%.1f%%", download.Progress) }</span>
 								if download.DownloadSpeed > 0 {
-									<span>{ formatSpeed(download.DownloadSpeed) }</span>
+									<span id={ fmt.Sprintf("speed-text-%d", download.ID) }>{ formatSpeed(download.DownloadSpeed) }</span>
 								}
 							</div>
 							<div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
 								<div 
+									id={ fmt.Sprintf("progress-bar-%d", download.ID) }
 									class="bg-blue-600 h-2 rounded-full transition-all duration-300" 
 									style={ fmt.Sprintf("width: %.1f%%", download.Progress) }
 								></div>
@@ -308,7 +309,7 @@ templ DownloadItem(download *models.Download) {
 							</span>
 						}
 						if download.Status == models.StatusDownloading && download.Progress > 0 {
-							<span class="text-xs text-gray-500 dark:text-gray-400 ml-auto">
+							<span id={ fmt.Sprintf("progress-header-%d", download.ID) } class="text-xs text-gray-500 dark:text-gray-400 ml-auto">
 								{ fmt.Sprintf("%.1f%%", download.Progress) }
 							</span>
 						}
@@ -379,13 +380,14 @@ templ DownloadItem(download *models.Download) {
 				if download.Status == models.StatusDownloading {
 					<div class="mb-4">
 						<div class="flex justify-between text-sm text-gray-600 dark:text-gray-400 mb-1">
-							<span>{ fmt.Sprintf("%.1f%%", download.Progress) }</span>
+							<span id={ fmt.Sprintf("progress-text-%d", download.ID) }>{ fmt.Sprintf("%.1f%%", download.Progress) }</span>
 							if download.DownloadSpeed > 0 {
-								<span>{ formatSpeed(download.DownloadSpeed) }</span>
+								<span id={ fmt.Sprintf("speed-text-%d", download.ID) }>{ formatSpeed(download.DownloadSpeed) }</span>
 							}
 						</div>
 						<div class="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
 							<div 
+								id={ fmt.Sprintf("progress-bar-%d", download.ID) }
 								class="bg-blue-600 h-2 rounded-full transition-all duration-300" 
 								style={ fmt.Sprintf("width: %.1f%%", download.Progress) }
 							></div>
@@ -595,4 +597,44 @@ templ StatsButton(stats map[string]int) {
 templ DownloadStatsWithPolling(stats map[string]int, activeCount int) {
 	@DownloadStatsModal(stats)
 	@DynamicPollingTrigger("stats-polling-trigger", "/api/stats", "#stats-modal-content", activeCount)
+}
+
+// ProgressBarUpdate provides targeted progress bar updates via out-of-band swaps
+templ ProgressBarUpdate(download *models.Download) {
+	if download.Status == models.StatusDownloading {
+		<!-- Header progress percentage update -->
+		<span 
+			id={ fmt.Sprintf("progress-header-%d", download.ID) }
+			class="text-xs text-gray-500 dark:text-gray-400 ml-auto"
+			hx-swap-oob="outerHTML"
+		>
+			{ fmt.Sprintf("%.1f%%", download.Progress) }
+		</span>
+		
+		<!-- Progress percentage update -->
+		<span 
+			id={ fmt.Sprintf("progress-text-%d", download.ID) }
+			hx-swap-oob="innerHTML"
+		>
+			{ fmt.Sprintf("%.1f%%", download.Progress) }
+		</span>
+		
+		<!-- Speed update -->
+		if download.DownloadSpeed > 0 {
+			<span 
+				id={ fmt.Sprintf("speed-text-%d", download.ID) }
+				hx-swap-oob="innerHTML"
+			>
+				{ formatSpeed(download.DownloadSpeed) }
+			</span>
+		}
+		
+		<!-- Progress bar width update -->
+		<div 
+			id={ fmt.Sprintf("progress-bar-%d", download.ID) }
+			class="bg-blue-600 h-2 rounded-full transition-all duration-300"
+			style={ fmt.Sprintf("width: %.1f%%", download.Progress) }
+			hx-swap-oob="outerHTML"
+		></div>
+	}
 }

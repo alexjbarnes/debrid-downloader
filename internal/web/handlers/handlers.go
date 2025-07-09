@@ -1595,3 +1595,38 @@ func (h *Handlers) GetDownloadStats(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 }
+
+// UpdateDownloadProgress handles fast progress updates for active downloads only
+func (h *Handlers) UpdateDownloadProgress(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	
+	// Get only actively downloading downloads
+	downloads, err := h.db.ListDownloads(10, 0)
+	if err != nil {
+		h.logger.Error("Failed to get downloads for progress update", "error", err)
+		return
+	}
+	
+	// Filter for downloading status only
+	var activeDownloads []*models.Download
+	for _, download := range downloads {
+		if download.Status == models.StatusDownloading {
+			activeDownloads = append(activeDownloads, download)
+		}
+	}
+	
+	// If no active downloads, send empty out-of-band swap to clear any progress bars
+	if len(activeDownloads) == 0 {
+		return
+	}
+	
+	// Send progress updates as out-of-band swaps for each downloading item
+	for _, download := range activeDownloads {
+		// Create progress bar update component for this specific download
+		progressComponent := templates.ProgressBarUpdate(download)
+		if err := progressComponent.Render(r.Context(), w); err != nil {
+			h.logger.Error("Failed to render progress update", "error", err, "download_id", download.ID)
+			continue
+		}
+	}
+}

@@ -415,8 +415,24 @@ templ Home(downloads []*models.Download, suggestedDir string) {
 				@DownloadsList(downloads)
 			</div>
 			
-			<!-- Hidden polling trigger that gets updated via out-of-band swaps -->
-			<div id="polling-trigger" style="display: none;"></div>
+			<!-- Static polling triggers for hybrid approach -->
+			<!-- Fast progress updates every 500ms -->
+			<div id="progress-polling-trigger"
+				hx-post="/downloads/progress"
+				hx-trigger="every 500ms"
+				hx-swap="none"
+				style="display: none;">
+			</div>
+			
+			<!-- Slow full refresh every 30s -->
+			<div id="full-refresh-trigger"
+				hx-post="/downloads/search"
+				hx-trigger="every 30s"
+				hx-target="#downloads-list"
+				hx-include="#search-form"
+				hx-swap="innerHTML"
+				style="display: none;">
+			</div>
 		</div>
 	</div>
 }

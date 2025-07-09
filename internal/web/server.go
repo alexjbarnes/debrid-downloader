@@ -38,6 +38,7 @@ func NewServer(db *database.DB, client alldebrid.AllDebridClient, cfg *config.Co
 	mux.HandleFunc("GET /downloads/current", handlers.CurrentDownloads)
 	mux.HandleFunc("POST /download", handlers.SubmitDownload)
 	mux.HandleFunc("POST /downloads/search", handlers.SearchDownloads)
+	mux.HandleFunc("POST /downloads/progress", handlers.UpdateDownloadProgress)
 	mux.HandleFunc("POST /downloads/{id}/retry", handlers.RetryDownload)
 	mux.HandleFunc("POST /downloads/{id}/pause", handlers.PauseDownload)
 	mux.HandleFunc("POST /downloads/{id}/resume", handlers.ResumeDownload)
