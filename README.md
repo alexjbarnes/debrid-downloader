@@ -154,8 +154,7 @@ debrid-downloader/
 
 ## API Endpoints
 
-- `GET /` - Main download interface
-- `GET /history` - Download history with search
+- `GET /` - Main download interface with history and search
 - `GET /settings` - Application settings
 - `POST /download` - Submit new download
 - `GET /api/folders` - Browse folders (AJAX)

@@ -237,7 +237,7 @@ templ DynamicPollingTrigger(triggerID, endpoint, target string, activeCount int)
 	if activeCount > 0 {
 		// Active downloads - enable fast polling
 		if endpoint == "/downloads/search" {
-			// History page needs special handling for search form
+			// Search form needs special handling for POST requests
 			<div id={ triggerID }
 				hx-post={ endpoint }
 				hx-trigger="every 500ms"
